@@ -17,6 +17,7 @@ public class AccountDirectoryAuthRepository {
             rs.getInt("directory_type_id"),
             rs.getString("directory_type"),
             rs.getString("directory_group_id"),
+            rs.getString("directory_group_name"),
             rs.getString("etm_subscriber_id"),
             rs.getObject("oauth_config_id") != null ? rs.getLong("oauth_config_id") : null,
             rs.getString("rc_refresh_token"),
@@ -38,7 +39,23 @@ public class AccountDirectoryAuthRepository {
                 """, accountId, directoryTypeId, etmSubscriberId);
     }
 
-    public void update(String accountId, String directoryGroupId, Boolean active) {
+    public void update(String accountId, String directoryGroupId, String directoryGroupName, Boolean active) {
+        if (directoryGroupId != null && directoryGroupName != null && active != null) {
+            jdbcTemplate.update("""
+                    UPDATE account_directory_auth
+                    SET directory_group_id = ?, directory_group_name = ?, active = ?
+                    WHERE account_id = ?
+                    """, directoryGroupId, directoryGroupName, active ? 1 : 0, accountId);
+            return;
+        }
+        if (directoryGroupId != null && directoryGroupName != null) {
+            jdbcTemplate.update("""
+                    UPDATE account_directory_auth
+                    SET directory_group_id = ?, directory_group_name = ?
+                    WHERE account_id = ?
+                    """, directoryGroupId, directoryGroupName, accountId);
+            return;
+        }
         if (directoryGroupId != null && active != null) {
             jdbcTemplate.update("""
                     UPDATE account_directory_auth
@@ -75,7 +92,7 @@ public class AccountDirectoryAuthRepository {
     public Optional<AccountDirectoryAuthRecord> findByAccountId(String accountId) {
         String sql = """
                 SELECT a.id, a.account_id, a.directory_type_id, t.directory_type,
-                       a.directory_group_id, a.etm_subscriber_id, a.oauth_config_id,
+                       a.directory_group_id, a.directory_group_name, a.etm_subscriber_id, a.oauth_config_id,
                        a.rc_refresh_token, a.active
                 FROM account_directory_auth a
                 JOIN directory_type t ON t.id = a.directory_type_id

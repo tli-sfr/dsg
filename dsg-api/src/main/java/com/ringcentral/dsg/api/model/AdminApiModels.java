@@ -32,20 +32,56 @@ public final class AdminApiModels {
     public record DirectoryConfigRequest(@NotNull DirectoryType directoryType, String etmSubscriberId) {
     }
 
-    public record DirectoryUpdateRequest(String directoryGroupId, Boolean active) {
+    public record DirectoryUpdateRequest(String directoryGroupId, String directoryGroupName, Boolean active) {
     }
 
-    public record DirectoryResponse(String directoryType, String directoryGroupId, boolean active, boolean connected) {
+    public record DirectoryResponse(
+            String directoryType,
+            String directoryGroupId,
+            String directoryGroupName,
+            boolean active,
+            boolean connected) {
     }
 
     public record DirectoryOAuthRequest(
             @NotNull DirectoryType directoryType,
             @NotBlank String authFlow,
             @NotBlank String clientId,
-            @NotBlank String clientSecret) {
+            @NotBlank String clientSecret,
+            String azureTenantId,
+            String oktaDomain,
+            String scopes) {
     }
 
     public record DirectoryOAuthResponse(String directoryType, String clientId, Instant tokenExpiresAt) {
+    }
+
+    public record DirectoryOAuthConfigResponse(
+            String directoryType,
+            String authFlow,
+            String clientId,
+            String azureTenantId,
+            String oktaDomain,
+            String callbackUrl,
+            boolean connected,
+            Instant tokenExpiresAt,
+            String connectedUserFirstName,
+            String connectedUserLastName) {
+    }
+
+    public record DirectoryOAuthConnectResponse(
+            String status,
+            String connectedUserFirstName,
+            String connectedUserLastName) {
+    }
+
+    public record DirectoryOAuthTokenRequest(@NotBlank String code, @NotBlank String state) {
+    }
+
+    public record DirectoryGroupItem(String id, String name) {
+    }
+
+    public record DirectoryGroupsResponse(List<DirectoryGroupItem> groups) {
     }
 
     public record RcOAuthTokenRequest(@NotBlank String code, @NotBlank String state) {

@@ -38,26 +38,74 @@ async function request<T>(
   if (response.status === 204) {
     return undefined as T;
   }
-  return response.json() as Promise<T>;
+  const text = await response.text();
+  if (!text) {
+    return undefined as T;
+  }
+  return JSON.parse(text) as T;
 }
 
 export const api = {
   getDirectory: (accountId: string) =>
     request<DirectoryResponse>(accountId, '/directory'),
 
-  createDirectory: (accountId: string, directoryType: DirectoryType) =>
-    request<void>(accountId, '/directory', {
-      method: 'POST',
-      body: JSON.stringify({ directoryType }),
-    }),
-
   updateDirectory: (
     accountId: string,
-    body: { directoryGroupId?: string; active?: boolean },
+    body: { directoryGroupId?: string; directoryGroupName?: string; active?: boolean },
   ) =>
     request<void>(accountId, '/directory', {
       method: 'PUT',
       body: JSON.stringify(body),
+    }),
+
+  getDirectoryOAuthConfig: (accountId: string) =>
+    request<import('./types').DirectoryOAuthConfig>(accountId, '/directory/oauth/config'),
+
+  saveDirectoryOAuth: (
+    accountId: string,
+    body: {
+      directoryType: DirectoryType;
+      authFlow: string;
+      clientId: string;
+      clientSecret: string;
+      azureTenantId?: string;
+      oktaDomain?: string;
+    },
+  ) =>
+    request<void>(accountId, '/directory/oauth', {
+      method: 'PUT',
+      body: JSON.stringify(body),
+    }),
+
+  getDirectoryAuthorizeUrl: (accountId: string) =>
+    request<{ authorizeUrl: string; state: string }>(accountId, '/directory/oauth/authorize-url'),
+
+  exchangeDirectoryOAuthToken: (
+    accountId: string,
+    body: { code: string; state: string },
+  ) =>
+    request<{
+      status: string;
+      connectedUserFirstName: string | null;
+      connectedUserLastName: string | null;
+    }>(accountId, '/directory/oauth/token', {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
+
+  disconnectDirectoryOAuth: (accountId: string) =>
+    request<void>(accountId, '/directory/oauth', { method: 'DELETE' }),
+
+  searchDirectoryGroups: (accountId: string, search: string) =>
+    request<{ groups: { id: string; name: string }[] }>(
+      accountId,
+      `/directory/groups?search=${encodeURIComponent(search)}`,
+    ),
+
+  createDirectory: (accountId: string, directoryType: DirectoryType) =>
+    request<void>(accountId, '/directory', {
+      method: 'POST',
+      body: JSON.stringify({ directoryType }),
     }),
 
   configureScheduler: (

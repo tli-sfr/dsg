@@ -6,6 +6,7 @@ public record AccountDirectoryAuthRecord(
         int directoryTypeId,
         String directoryTypeName,
         String directoryGroupId,
+        String directoryGroupName,
         String etmSubscriberId,
         Long oauthConfigId,
         String rcRefreshToken,

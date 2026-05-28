@@ -11,6 +11,8 @@ Maps Google AI Studio mockups to routes, APIs, and schema. Source: HTML export +
 | `/directory-integration` | Main dashboard |
 | `/directory-integration/rules/new` | Create rule |
 | `/directory-integration/rules/{id}` | Edit rule |
+| `/directory-integration/configuration` | Directory config — IDP OAuth + group selection |
+| `/directory-integration/oauth/callback` | Directory IDP OAuth popup callback |
 
 ---
 

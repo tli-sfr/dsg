@@ -51,7 +51,7 @@ class RulesMatchingPipelineIT extends AbstractApiIntegrationTest {
     @BeforeEach
     void seedAccount() {
         authRepository.upsert("acct-rules", 2, null);
-        authRepository.update("acct-rules", "sales-group", true);
+        authRepository.update("acct-rules", "sales-group", "Sales", true);
     }
 
     @Test

@@ -100,7 +100,10 @@ export function OAuthCallbackPage() {
 
       sessionStorage.setItem(exchangeKey, 'in_progress');
       try {
-        await api.exchangeRcOAuthToken(resolvedAccountId, { code, state: normalizedState });
+        await api.exchangeRcOAuthToken(resolvedAccountId, {
+          code: code!,
+          state: normalizedState,
+        });
         sessionStorage.setItem(exchangeKey, 'done');
         if (!ignoreStateUpdates) {
           setStatus('success');
