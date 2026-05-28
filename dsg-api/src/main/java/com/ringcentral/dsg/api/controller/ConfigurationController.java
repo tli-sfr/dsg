@@ -1,5 +1,6 @@
 package com.ringcentral.dsg.api.controller;
 
+import com.ringcentral.dsg.api.model.AdminApiModels.AttributeMappingConfigResponse;
 import com.ringcentral.dsg.api.model.AdminApiModels.AttributeMappingRequest;
 import com.ringcentral.dsg.api.model.AdminApiModels.DeprovisioningRequest;
 import com.ringcentral.dsg.api.model.AdminApiModels.DeprovisioningResponse;
@@ -32,6 +33,11 @@ public class ConfigurationController {
     public ResponseEntity<Void> configureScheduler(@PathVariable String accountId, @Valid @RequestBody SchedulerRequest request) {
         adminApiService.configureScheduler(accountId, request);
         return ResponseEntity.ok().build();
+    }
+
+    @GetMapping("/attribute-mapping")
+    public ResponseEntity<AttributeMappingConfigResponse> getAttributeMapping(@PathVariable String accountId) {
+        return ResponseEntity.ok(adminApiService.getAttributeMappingConfig(accountId));
     }
 
     @PostMapping("/attribute-mapping")

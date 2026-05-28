@@ -35,6 +35,18 @@ class ConfigurationReadIT extends AbstractApiIntegrationTest {
     }
 
     @Test
+    void returnsDefaultAttributeMappingsForOkta() throws Exception {
+        mockMvc.perform(get("/dsg/v1/" + ACCOUNT + "/attribute-mapping"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.syncDirection").value("DIR_TO_RC"))
+                .andExpect(jsonPath("$.accountConfigured").value(false))
+                .andExpect(jsonPath("$.mappings.length()").value(10))
+                .andExpect(jsonPath("$.mappings[0].directoryAttributePath").value("profile.firstName"))
+                .andExpect(jsonPath("$.mappings[0].rcAttribute").value("firstName"))
+                .andExpect(jsonPath("$.directoryAttributes.length()").value(10));
+    }
+
+    @Test
     void listsRulesAndManagesDeprovisioning() throws Exception {
         mockMvc.perform(post("/dsg/v1/" + ACCOUNT + "/rule")
                         .contentType(MediaType.APPLICATION_JSON)

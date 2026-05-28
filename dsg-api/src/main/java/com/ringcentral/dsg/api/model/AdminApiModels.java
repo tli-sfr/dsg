@@ -62,6 +62,24 @@ public final class AdminApiModels {
             @NotNull List<@Valid AttributeMappingRow> customMappings) {
     }
 
+    public record AttributeMappingItem(
+            String directoryAttributePath,
+            String directoryAttributeName,
+            String rcAttribute,
+            int displaySequence) {
+    }
+
+    public record AttributeCatalogItem(String attributeName, String attributePath, String displayName) {
+    }
+
+    public record AttributeMappingConfigResponse(
+            String syncDirection,
+            boolean accountConfigured,
+            List<AttributeMappingItem> mappings,
+            List<AttributeCatalogItem> directoryAttributes,
+            List<AttributeCatalogItem> rcAttributes) {
+    }
+
     public record ProvisioningRuleSummary(
             String ruleId,
             String ruleName,

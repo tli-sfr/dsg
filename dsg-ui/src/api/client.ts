@@ -1,5 +1,6 @@
 import type {
   ApiError,
+  AttributeMappingConfig,
   DeprovisioningType,
   DirectoryResponse,
   DirectoryType,
@@ -62,6 +63,9 @@ export const api = {
       method: 'POST',
       body: JSON.stringify(body),
     }),
+
+  getAttributeMapping: (accountId: string) =>
+    request<AttributeMappingConfig>(accountId, '/attribute-mapping'),
 
   saveAttributeMapping: (accountId: string, body: unknown) =>
     request<void>(accountId, '/attribute-mapping', {

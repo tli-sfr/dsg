@@ -9,6 +9,7 @@ import type {
   JobSummary,
   ProvisioningRuleSummary,
 } from '../api/types';
+import { AttributeMappingSection } from '../components/AttributeMappingSection';
 import { useAccountId } from '../components/AccountBar';
 import { Card } from '../components/Card';
 import { formatInstant, formatSelectionExpression } from '../lib/format';
@@ -130,6 +131,13 @@ export function DashboardPage() {
           )}
         </Card>
       </div>
+
+      <AttributeMappingSection
+        accountId={accountId}
+        directoryType={directory?.directoryType}
+        onMessage={setMessage}
+        onError={setError}
+      />
 
       <Card
         title="Synchronization"

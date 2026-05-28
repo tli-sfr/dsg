@@ -1,5 +1,7 @@
 package com.ringcentral.dsg.persistence.repo;
 
+import com.ringcentral.dsg.persistence.model.AttributeMappingView;
+import java.util.List;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Repository;
 
@@ -47,6 +49,28 @@ public class AttributeMappingRepository {
                 accountId,
                 directoryAttributePath,
                 rcCustomAttributeName);
+    }
+
+    public List<AttributeMappingView> listAccountMappings(String accountId, int directionId) {
+        return jdbcTemplate.query(
+                """
+                        SELECT COALESCE(am.directory_attribute_path, da.attribute_path) AS attribute_path,
+                               da.attribute_name,
+                               ra.attribute_name AS rc_attribute_name,
+                               am.id AS display_sequence
+                        FROM attribute_mapping am
+                        JOIN directory_attribute da ON da.id = am.directory_attribute_id
+                        JOIN rc_attribute ra ON ra.id = am.rc_attribute_id
+                        WHERE am.account_id = ? AND am.direction_id = ?
+                        ORDER BY am.id
+                        """,
+                (rs, rowNum) -> new AttributeMappingView(
+                        rs.getString("attribute_path"),
+                        rs.getString("attribute_name"),
+                        rs.getString("rc_attribute_name"),
+                        rs.getInt("display_sequence")),
+                accountId,
+                directionId);
     }
 
     public int countBasicMappings(String accountId) {

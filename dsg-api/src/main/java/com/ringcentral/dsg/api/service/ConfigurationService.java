@@ -2,6 +2,9 @@ package com.ringcentral.dsg.api.service;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.ringcentral.dsg.api.model.AdminApiModels.AttributeCatalogItem;
+import com.ringcentral.dsg.api.model.AdminApiModels.AttributeMappingConfigResponse;
+import com.ringcentral.dsg.api.model.AdminApiModels.AttributeMappingItem;
 import com.ringcentral.dsg.api.model.AdminApiModels.AttributeMappingRequest;
 import com.ringcentral.dsg.api.model.AdminApiModels.AttributeMappingRow;
 import com.ringcentral.dsg.api.model.AdminApiModels.DeprovisioningResponse;
@@ -12,8 +15,12 @@ import com.ringcentral.dsg.api.model.AdminApiModels.SchedulerRequest;
 import com.ringcentral.dsg.persistence.repo.DeprovisioningRuleRepository;
 import com.ringcentral.dsg.persistence.model.AccountDirectoryAuthRecord;
 import com.ringcentral.dsg.persistence.repo.AccountDirectoryAuthRepository;
+import com.ringcentral.dsg.persistence.model.AttributeCatalogEntry;
+import com.ringcentral.dsg.persistence.model.AttributeMappingView;
+import com.ringcentral.dsg.persistence.repo.AttributeCatalogRepository;
 import com.ringcentral.dsg.persistence.repo.AttributeMappingRepository;
 import com.ringcentral.dsg.persistence.repo.AttributeMetadataRepository;
+import com.ringcentral.dsg.persistence.repo.DefaultAttributeMappingRepository;
 import com.ringcentral.dsg.persistence.repo.DirectorySyncTimeRepository;
 import com.ringcentral.dsg.persistence.repo.LookupRepository;
 import com.ringcentral.dsg.persistence.repo.ProvisioningRuleRepository;
@@ -29,6 +36,8 @@ public class ConfigurationService {
     private final AccountDirectoryAuthRepository authRepository;
     private final DirectorySyncTimeRepository syncTimeRepository;
     private final AttributeMappingRepository attributeMappingRepository;
+    private final DefaultAttributeMappingRepository defaultAttributeMappingRepository;
+    private final AttributeCatalogRepository attributeCatalogRepository;
     private final AttributeMetadataRepository attributeMetadataRepository;
     private final ProvisioningRuleRepository provisioningRuleRepository;
     private final DeprovisioningRuleRepository deprovisioningRuleRepository;
@@ -39,6 +48,8 @@ public class ConfigurationService {
             AccountDirectoryAuthRepository authRepository,
             DirectorySyncTimeRepository syncTimeRepository,
             AttributeMappingRepository attributeMappingRepository,
+            DefaultAttributeMappingRepository defaultAttributeMappingRepository,
+            AttributeCatalogRepository attributeCatalogRepository,
             AttributeMetadataRepository attributeMetadataRepository,
             ProvisioningRuleRepository provisioningRuleRepository,
             DeprovisioningRuleRepository deprovisioningRuleRepository,
@@ -47,6 +58,8 @@ public class ConfigurationService {
         this.authRepository = authRepository;
         this.syncTimeRepository = syncTimeRepository;
         this.attributeMappingRepository = attributeMappingRepository;
+        this.defaultAttributeMappingRepository = defaultAttributeMappingRepository;
+        this.attributeCatalogRepository = attributeCatalogRepository;
         this.attributeMetadataRepository = attributeMetadataRepository;
         this.provisioningRuleRepository = provisioningRuleRepository;
         this.deprovisioningRuleRepository = deprovisioningRuleRepository;
@@ -106,6 +119,30 @@ public class ConfigurationService {
                 directionId,
                 lookupRepository.defaultJobFrequencyId(),
                 request.cronExpression());
+    }
+
+    public AttributeMappingConfigResponse getAttributeMappingConfig(String accountId) {
+        AccountDirectoryAuthRecord auth = requireDirectoryAuth(accountId);
+        int directionId = 1;
+        boolean configured = attributeMappingRepository.countBasicMappings(accountId) > 0;
+        List<AttributeMappingView> views = configured
+                ? attributeMappingRepository.listAccountMappings(accountId, directionId)
+                : defaultAttributeMappingRepository.listDefaults(auth.directoryTypeId(), directionId);
+
+        List<AttributeMappingItem> mappings = views.stream()
+                .map(v -> new AttributeMappingItem(
+                        v.directoryAttributePath(),
+                        v.directoryAttributeName(),
+                        v.rcAttributeName(),
+                        v.displaySequence()))
+                .toList();
+
+        return new AttributeMappingConfigResponse(
+                "DIR_TO_RC",
+                configured,
+                mappings,
+                toCatalogItems(attributeCatalogRepository.listDirectoryAttributes(auth.directoryTypeId())),
+                toCatalogItems(attributeCatalogRepository.listRcAttributes()));
     }
 
     @Transactional
@@ -221,5 +258,11 @@ public class ConfigurationService {
 
     private String stringValue(Object value) {
         return value != null ? value.toString() : null;
+    }
+
+    private List<AttributeCatalogItem> toCatalogItems(List<AttributeCatalogEntry> entries) {
+        return entries.stream()
+                .map(e -> new AttributeCatalogItem(e.attributeName(), e.attributePath(), e.displayName()))
+                .toList();
     }
 }

@@ -49,3 +49,30 @@ export interface ApiError {
   code: string;
   message: string;
 }
+
+export interface AttributeMappingItem {
+  directoryAttributePath: string;
+  directoryAttributeName: string;
+  rcAttribute: string;
+  displaySequence: number;
+}
+
+export interface AttributeCatalogItem {
+  attributeName: string;
+  attributePath: string;
+  displayName: string;
+}
+
+export interface AttributeMappingConfig {
+  syncDirection: string;
+  accountConfigured: boolean;
+  mappings: AttributeMappingItem[];
+  directoryAttributes: AttributeCatalogItem[];
+  rcAttributes: AttributeCatalogItem[];
+}
+
+export interface AttributeMappingRow {
+  syncDirection: string;
+  directoryAttribute: string;
+  rcAttribute: string;
+}
