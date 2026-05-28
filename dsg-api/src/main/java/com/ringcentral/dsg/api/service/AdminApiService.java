@@ -7,30 +7,28 @@ import com.ringcentral.dsg.api.model.AdminApiModels.DirectoryOAuthRequest;
 import com.ringcentral.dsg.api.model.AdminApiModels.DirectoryOAuthResponse;
 import com.ringcentral.dsg.api.model.AdminApiModels.DirectoryResponse;
 import com.ringcentral.dsg.api.model.AdminApiModels.DirectoryUpdateRequest;
-import com.ringcentral.dsg.api.model.AdminApiModels.JobFailure;
 import com.ringcentral.dsg.api.model.AdminApiModels.JobReportResponse;
 import com.ringcentral.dsg.api.model.AdminApiModels.JobResponse;
 import com.ringcentral.dsg.api.model.AdminApiModels.ProvisioningRuleRequest;
 import com.ringcentral.dsg.api.model.AdminApiModels.SchedulerRequest;
 import org.springframework.stereotype.Service;
 
-import java.util.List;
-import java.util.Map;
 import java.util.Optional;
-import java.util.UUID;
-import java.util.concurrent.ConcurrentHashMap;
 
 @Service
 public class AdminApiService {
 
     private final DirectoryConfigService directoryConfigService;
     private final ConfigurationService configurationService;
-    private final Map<String, JobRecord> activeJobByAccount = new ConcurrentHashMap<>();
-    private final Map<String, JobReportResponse> reportByJobId = new ConcurrentHashMap<>();
+    private final JobManagerService jobManagerService;
 
-    public AdminApiService(DirectoryConfigService directoryConfigService, ConfigurationService configurationService) {
+    public AdminApiService(
+            DirectoryConfigService directoryConfigService,
+            ConfigurationService configurationService,
+            JobManagerService jobManagerService) {
         this.directoryConfigService = directoryConfigService;
         this.configurationService = configurationService;
+        this.jobManagerService = jobManagerService;
     }
 
     public void createDirectory(String accountId, DirectoryConfigRequest request) {
@@ -70,20 +68,10 @@ public class AdminApiService {
     }
 
     public Optional<JobResponse> createJob(String accountId, CreateJobRequest request) {
-        JobRecord current = activeJobByAccount.get(accountId);
-        if (current != null && !current.terminal()) {
-            return Optional.empty();
-        }
-        String jobId = UUID.randomUUID().toString();
-        activeJobByAccount.put(accountId, new JobRecord(jobId, false));
-        reportByJobId.put(jobId, new JobReportResponse(jobId, 0, 0, List.of()));
-        return Optional.of(new JobResponse(jobId, "PENDING"));
+        return jobManagerService.createJob(accountId, request);
     }
 
     public JobReportResponse getJobReport(String jobId) {
-        return reportByJobId.getOrDefault(jobId, new JobReportResponse(jobId, 0, 0, List.of(new JobFailure(null, "Report not found"))));
-    }
-
-    private record JobRecord(String jobId, boolean terminal) {
+        return jobManagerService.getJobReport(jobId);
     }
 }
