@@ -1,6 +1,9 @@
 spring:
   application:
     name: dsg-backend
+  # Loads src/main/resources/application-local.yml when present (gitignored) — no need for -Dspring-boot.run.profiles=local
+  config:
+    import: optional:classpath:application-local.yml
   datasource:
     url: jdbc:mysql://localhost:3307/dsb
     username: dsg
@@ -10,6 +13,9 @@ spring:
     locations: classpath:db/migration
 
 dsg:
+  directory:
+    # false = load group members from Okta API; true = in-memory stub (integration tests)
+    stub: false
   crypto:
     secret-key: local-dev-only-change-me
   app:

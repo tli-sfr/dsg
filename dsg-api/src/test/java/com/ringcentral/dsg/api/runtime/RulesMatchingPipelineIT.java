@@ -63,6 +63,7 @@ class RulesMatchingPipelineIT extends AbstractApiIntegrationTest {
                 """
                         {"match":"ALL","criteria":[{"attribute":"user.department","operator":"EQ","value":"Sales"}]}
                         """);
+        provisioningRuleRepository.insertLicenseAssignment(salesRuleId, 1, "VideoPro");
         provisioningRuleRepository.upsertRule(
                 "acct-rules",
                 "Engineering",
@@ -98,6 +99,7 @@ class RulesMatchingPipelineIT extends AbstractApiIntegrationTest {
                 """
                         {"match":"ALL","criteria":[{"attribute":"user.department","operator":"EQ","value":"Sales"}]}
                         """);
+        provisioningRuleRepository.insertLicenseAssignment(ruleId, 1, "RingEX");
         provisioningRuleRepository.insertRuleBasedAttributeMapping(
                 "acct-rules", ruleId, "user.department", "Sales", 1, "SalesManager");
 

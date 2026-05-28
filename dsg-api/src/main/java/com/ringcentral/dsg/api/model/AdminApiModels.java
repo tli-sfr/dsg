@@ -139,6 +139,18 @@ public final class AdminApiModels {
     public record ProvisioningRuleListResponse(List<ProvisioningRuleSummary> rules) {
     }
 
+    public record ProvisioningRuleDetailResponse(
+            String ruleId,
+            String ruleName,
+            int priority,
+            Map<String, Object> selectionExpression,
+            List<Map<String, Object>> licenseAssignments,
+            List<Map<String, Object>> ruleBasedAttributeMappings,
+            Map<String, Object> areaCodeAssignment,
+            List<Map<String, Object>> deviceAssignments,
+            List<Map<String, Object>> templateAssignments) {
+    }
+
     public record DeprovisioningRequest(@NotBlank String deprovisioningType) {
     }
 

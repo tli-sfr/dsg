@@ -119,6 +119,14 @@ public class AccountDirectoryAuthRepository {
         }
     }
 
+    public void clearRcRefreshToken(String accountId) {
+        jdbcTemplate.update("""
+                UPDATE account_directory_auth
+                SET rc_refresh_token = NULL
+                WHERE account_id = ?
+                """, accountId);
+    }
+
     public Optional<String> findRcRefreshToken(String accountId) {
         String sql = """
                 SELECT rc_refresh_token
@@ -141,6 +149,25 @@ public class AccountDirectoryAuthRepository {
         return count != null && count > 0;
     }
 
+    /**
+     * Copies directory integration fields from a placeholder account into the resolved RC account row.
+     */
+    public void mergeDirectoryConfigInto(String toAccountId, AccountDirectoryAuthRecord from) {
+        jdbcTemplate.update("""
+                UPDATE account_directory_auth AS target
+                JOIN account_directory_auth AS source ON source.account_id = ?
+                SET target.directory_type_id = COALESCE(target.directory_type_id, source.directory_type_id),
+                    target.directory_group_id = COALESCE(target.directory_group_id, source.directory_group_id),
+                    target.directory_group_name = COALESCE(target.directory_group_name, source.directory_group_name),
+                    target.oauth_config_id = COALESCE(target.oauth_config_id, source.oauth_config_id),
+                    target.etm_subscriber_id = COALESCE(target.etm_subscriber_id, source.etm_subscriber_id),
+                    target.rc_refresh_token = COALESCE(target.rc_refresh_token, source.rc_refresh_token),
+                    target.active = CASE WHEN target.active = 1 THEN target.active ELSE source.active END
+                WHERE target.account_id = ?
+                """, from.accountId(), toAccountId);
+    }
+
+    @Deprecated
     public void migrateRcRefreshToken(String fromAccountId, String toAccountId) {
         if (fromAccountId.equals(toAccountId)) {
             return;

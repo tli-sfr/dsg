@@ -105,6 +105,100 @@ public class ProvisioningRuleRepository {
         return count("license_assignment", ruleId);
     }
 
+    public String findPrimaryLicenseId(long ruleId) {
+        try {
+            return jdbcTemplate.queryForObject(
+                    """
+                            SELECT la.license_id
+                            FROM license_assignment la
+                            JOIN license_type lt ON lt.id = la.license_type_id
+                            WHERE la.rule_id = ? AND lt.type = 'PRIMARY_LICENSE'
+                            ORDER BY la.id ASC
+                            LIMIT 1
+                            """,
+                    String.class,
+                    ruleId);
+        } catch (EmptyResultDataAccessException ex) {
+            return null;
+        }
+    }
+
+    public Optional<ProvisioningRuleRecord> findByIdAndAccount(String accountId, long ruleId) {
+        try {
+            return Optional.of(jdbcTemplate.queryForObject(
+                    """
+                            SELECT id, rule_name, priority, selection_expression
+                            FROM provisioning_assignment_rule
+                            WHERE id = ? AND account_id = ?
+                            """,
+                    (rs, rowNum) -> new ProvisioningRuleRecord(
+                            rs.getLong("id"),
+                            rs.getString("rule_name"),
+                            rs.getInt("priority"),
+                            rs.getString("selection_expression")),
+                    ruleId,
+                    accountId));
+        } catch (EmptyResultDataAccessException ex) {
+            return Optional.empty();
+        }
+    }
+
+    public void updateRuleById(long ruleId, String ruleName, int priority, String selectionExpressionJson) {
+        deleteAssignments(ruleId);
+        jdbcTemplate.update("""
+                UPDATE provisioning_assignment_rule
+                SET rule_name = ?, priority = ?, selection_expression = ?
+                WHERE id = ?
+                """, ruleName, priority, selectionExpressionJson, ruleId);
+    }
+
+    public Optional<String> findAreaCodeListJson(long ruleId) {
+        try {
+            return Optional.ofNullable(jdbcTemplate.queryForObject(
+                    "SELECT area_code_list FROM dl_area_code_assignment WHERE rule_id = ? ORDER BY id ASC LIMIT 1",
+                    String.class,
+                    ruleId));
+        } catch (EmptyResultDataAccessException ex) {
+            return Optional.empty();
+        }
+    }
+
+    public Optional<String> findDeviceType(long ruleId) {
+        try {
+            return Optional.ofNullable(jdbcTemplate.queryForObject(
+                    """
+                            SELECT dt.type
+                            FROM device_assignment da
+                            JOIN device_type dt ON dt.id = da.device_type_id
+                            WHERE da.rule_id = ?
+                            ORDER BY da.id ASC
+                            LIMIT 1
+                            """,
+                    String.class,
+                    ruleId));
+        } catch (EmptyResultDataAccessException ex) {
+            return Optional.empty();
+        }
+    }
+
+    public Optional<String> findCallHandlingTemplateId(long ruleId) {
+        try {
+            return Optional.ofNullable(jdbcTemplate.queryForObject(
+                    """
+                            SELECT ta.template_id
+                            FROM template_assignment ta
+                            JOIN template_type tt ON tt.id = ta.template_type_id
+                            WHERE ta.rule_id = ? AND tt.type = 'CALL_HANDLING'
+                            ORDER BY ta.id ASC
+                            LIMIT 1
+                            """,
+                    String.class,
+                    ruleId));
+        } catch (EmptyResultDataAccessException ex) {
+            return Optional.empty();
+        }
+    }
+
     public List<ProvisioningRuleRecord> listByAccountOrderByPriority(String accountId) {
         return jdbcTemplate.query(
                 """

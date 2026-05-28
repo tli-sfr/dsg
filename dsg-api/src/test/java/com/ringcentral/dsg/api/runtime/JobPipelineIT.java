@@ -16,6 +16,8 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.jdbc.core.JdbcTemplate;
 
+import java.util.Map;
+
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.times;
@@ -45,11 +47,14 @@ class JobPipelineIT extends AbstractApiIntegrationTest {
     @MockBean
     private MessageQueuePort messageQueuePort;
 
+    private long allUsersRuleId;
+
     @BeforeEach
     void seedAccountAndJob() {
         authRepository.upsert("acct-worker", 2, null);
         authRepository.update("acct-worker", "sales-group", "Sales", true);
-        provisioningRuleRepository.upsertRule("acct-worker", "All Users", 1, "{\"match\":\"ALL\"}");
+        allUsersRuleId = provisioningRuleRepository.upsertRule("acct-worker", "All Users", 1, "{\"match\":\"ALL\"}");
+        provisioningRuleRepository.insertLicenseAssignment(allUsersRuleId, 1, "RingEX");
     }
 
     @Test
@@ -81,7 +86,10 @@ class JobPipelineIT extends AbstractApiIntegrationTest {
                     Long.toString(jobId),
                     "acct-worker",
                     externalId,
-                    "CREATE"));
+                    "CREATE",
+                    Long.toString(allUsersRuleId),
+                    externalId + "@dsg-sync.dev",
+                    stubAttributes(externalId)));
         }
 
         String finalState = jdbcTemplate.queryForObject(
@@ -99,5 +107,20 @@ class JobPipelineIT extends AbstractApiIntegrationTest {
                 Integer.class,
                 jobId);
         assertEquals(2, succeeded);
+    }
+
+    private static Map<String, String> stubAttributes(String externalId) {
+        if (externalId.endsWith("user-1")) {
+            return Map.of(
+                    "profile.firstName", "Alex",
+                    "profile.lastName", "Morgan",
+                    "profile.email", externalId + "@dsg-sync.dev",
+                    "department", "Sales");
+        }
+        return Map.of(
+                "profile.firstName", "Jordan",
+                "profile.lastName", "Kim",
+                "profile.email", externalId + "@dsg-sync.dev",
+                "department", "Engineering");
     }
 }

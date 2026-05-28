@@ -27,6 +27,7 @@ docker compose up -d
 mvn install -pl dsg-api -am -DskipTests
 ./scripts/dev-stop.sh   # if you see "Port 8080 was already in use"
 mvn -pl dsg-api spring-boot:run
+# Uses application-local.yml automatically when that file exists (RC server-url, client-id, etc.)
 ```
 
 API base: `http://localhost:8080/dsg/v1/{accountId}/...`

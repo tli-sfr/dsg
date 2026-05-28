@@ -13,7 +13,7 @@ record AzureGroupItem(String id, String displayName) {
 }
 
 @JsonIgnoreProperties(ignoreUnknown = true)
-record OktaGroupItem(String id, OktaGroupProfile profile) {
+record OktaGroupItem(String id, String type, OktaGroupProfile profile) {
 }
 
 @JsonIgnoreProperties(ignoreUnknown = true)

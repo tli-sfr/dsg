@@ -2,6 +2,7 @@ package com.ringcentral.dsg.worker.service;
 
 import com.ringcentral.dsg.directory.DirectoryPort;
 import com.ringcentral.dsg.directory.DirectoryUser;
+import com.ringcentral.dsg.mapping.DirectorySyncTrace;
 import com.ringcentral.dsg.messaging.JobDetailMessage;
 import com.ringcentral.dsg.messaging.JobMessage;
 import com.ringcentral.dsg.messaging.MessageQueuePort;
@@ -65,7 +66,11 @@ public class JobRetrievalService {
                 .orElseThrow(() -> new IllegalStateException("Directory auth missing for account " + message.accountId()));
 
         String groupId = auth.directoryGroupId() != null ? auth.directoryGroupId() : "default-group";
-        var members = directoryPort.listGroupMembers(message.accountId(), groupId);
+        List<DirectoryUser> members = directoryPort.listGroupMembers(message.accountId(), groupId);
+        log.info("[DSG sync:retrieve] account={} groupId={} directoryUsers={}", message.accountId(), groupId, members.size());
+        for (DirectoryUser member : members) {
+            DirectorySyncTrace.logDirectoryUser("retrieve", message.accountId(), member);
+        }
         List<ProvisioningRuleMatch> rules = provisioningRuleRepository.listByAccountOrderByPriority(message.accountId())
                 .stream()
                 .map(this::toMatch)

@@ -13,6 +13,7 @@ import com.ringcentral.dsg.api.model.AdminApiModels.DirectoryUpdateRequest;
 import com.ringcentral.dsg.persistence.repo.AccountDirectoryAuthRepository;
 import com.ringcentral.dsg.persistence.repo.AccountDirectoryOauthRepository;
 import com.ringcentral.dsg.persistence.repo.DirectoryTypeRepository;
+import com.ringcentral.dsg.persistence.service.EffectiveDirectoryTypeResolver;
 import org.springframework.stereotype.Service;
 
 import java.time.Instant;
@@ -24,16 +25,19 @@ public class DirectoryConfigService {
     private final AccountDirectoryAuthRepository authRepository;
     private final AccountDirectoryOauthRepository oauthRepository;
     private final DirectoryIdpOAuthService directoryIdpOAuthService;
+    private final EffectiveDirectoryTypeResolver effectiveDirectoryTypeResolver;
 
     public DirectoryConfigService(
             DirectoryTypeRepository directoryTypeRepository,
             AccountDirectoryAuthRepository authRepository,
             AccountDirectoryOauthRepository oauthRepository,
-            DirectoryIdpOAuthService directoryIdpOAuthService) {
+            DirectoryIdpOAuthService directoryIdpOAuthService,
+            EffectiveDirectoryTypeResolver effectiveDirectoryTypeResolver) {
         this.directoryTypeRepository = directoryTypeRepository;
         this.authRepository = authRepository;
         this.oauthRepository = oauthRepository;
         this.directoryIdpOAuthService = directoryIdpOAuthService;
+        this.effectiveDirectoryTypeResolver = effectiveDirectoryTypeResolver;
     }
 
     public void createDirectory(String accountId, DirectoryConfigRequest request) {
@@ -52,7 +56,7 @@ public class DirectoryConfigService {
     public DirectoryResponse getDirectory(String accountId) {
         return authRepository.findByAccountId(accountId)
                 .map(record -> new DirectoryResponse(
-                        record.directoryTypeName(),
+                        effectiveDirectoryTypeResolver.resolveDirectoryTypeName(accountId),
                         record.directoryGroupId(),
                         record.directoryGroupName(),
                         record.active(),

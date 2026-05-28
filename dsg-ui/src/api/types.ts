@@ -53,6 +53,18 @@ export interface ProvisioningRuleSummary {
   selectionExpression: Record<string, unknown>;
 }
 
+export interface ProvisioningRuleDetail {
+  ruleId: string;
+  ruleName: string;
+  priority: number;
+  selectionExpression: Record<string, unknown>;
+  licenseAssignments: { licenseType: string; licenseId: string }[];
+  areaCodeAssignment: { areaCodeRuleType: string; areaCodeList: string[] } | null;
+  deviceAssignments: { deviceType: string; deviceId?: string }[];
+  templateAssignments: { templateType: string; templateId: string }[];
+  ruleBasedAttributeMappings: unknown[];
+}
+
 export interface SelectionCriterion {
   attribute: string;
   operator: string;

@@ -24,10 +24,13 @@ import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
+import jakarta.servlet.http.Cookie;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import com.ringcentral.dsg.api.rc.RcOAuthSessionCookie;
 
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -86,6 +89,14 @@ class RcOAuthControllerIT extends AbstractApiIntegrationTest {
                         604800L,
                         "bearer",
                         "ReadAccounts"));
+        when(rcOAuthClient.refreshAccessToken(anyString()))
+                .thenReturn(new RcTokenResponse(
+                        "access-token",
+                        "refresh-token-plain",
+                        3600L,
+                        604800L,
+                        "bearer",
+                        "ReadAccounts"));
 
         String state = rcOAuthService.buildAuthorizeUrl("acct-rc").get("state");
 
@@ -108,6 +119,11 @@ class RcOAuthControllerIT extends AbstractApiIntegrationTest {
         assertEquals("refresh-token-plain", encryptionService.decrypt(stored));
 
         mockMvc.perform(get("/dsg/v1/acct-rc/rc/oauth/status"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.connected").value(false));
+
+        mockMvc.perform(get("/dsg/v1/acct-rc/rc/oauth/status")
+                        .cookie(new Cookie(RcOAuthSessionCookie.NAME, "acct-rc")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.connected").value(true));
     }
@@ -134,7 +150,8 @@ class RcOAuthControllerIT extends AbstractApiIntegrationTest {
                 VALUES (?, 1, ?, 0)
                 """, "acct-rc", encryptionService.encrypt("refresh-token-plain"));
 
-        mockMvc.perform(get("/dsg/v1/acct-rc/rc/oauth/session"))
+        mockMvc.perform(get("/dsg/v1/acct-rc/rc/oauth/session")
+                        .cookie(new Cookie(RcOAuthSessionCookie.NAME, "acct-rc")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.rcAccountId").value("123456789"))
                 .andExpect(jsonPath("$.extensionId").value(987654321))

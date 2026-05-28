@@ -5,7 +5,7 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 @ConfigurationProperties(prefix = "dsg.rc")
 public class RcOAuthProperties {
 
-    private String serverUrl = "https://platform.devtest.ringcentral.com";
+    private String serverUrl = "";
     private String clientId = "";
     private String clientSecret = "";
     private String redirectUri = "http://localhost:5173/oauth/callback";
@@ -56,7 +56,15 @@ public class RcOAuthProperties {
     }
 
     public String readExtensionEndpoint() {
-        return trimTrailingSlash(serverUrl) + "/restapi/v1.0/account/~/extension/~";
+        return restApiBase() + "/account/~/extension/~";
+    }
+
+    public String restApiBase() {
+        return trimTrailingSlash(serverUrl) + "/restapi/v1.0";
+    }
+
+    public String scimApiBase() {
+        return trimTrailingSlash(serverUrl) + "/scim/v2";
     }
 
     private static String trimTrailingSlash(String url) {
