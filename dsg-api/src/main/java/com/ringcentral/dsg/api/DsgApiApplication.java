@@ -3,7 +3,7 @@ package com.ringcentral.dsg.api;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 
-@SpringBootApplication
+@SpringBootApplication(scanBasePackages = {"com.ringcentral.dsg.api", "com.ringcentral.dsg.persistence"})
 public class DsgApiApplication {
 
     public static void main(String[] args) {

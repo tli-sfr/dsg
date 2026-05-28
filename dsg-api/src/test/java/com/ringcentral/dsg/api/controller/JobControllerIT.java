@@ -1,5 +1,6 @@
 package com.ringcentral.dsg.api.controller;
 
+import com.ringcentral.dsg.api.support.AbstractApiIntegrationTest;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
@@ -13,7 +14,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 @SpringBootTest
 @AutoConfigureMockMvc
-class JobControllerIT {
+class JobControllerIT extends AbstractApiIntegrationTest {
 
     @Autowired
     private MockMvc mockMvc;
