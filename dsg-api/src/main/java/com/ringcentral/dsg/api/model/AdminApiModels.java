@@ -79,10 +79,33 @@ public final class AdminApiModels {
     public record JobResponse(String jobId, String state) {
     }
 
-    public record JobFailure(String externalId, String comment) {
+    public record JobFailure(String externalId, String operation, String comment) {
     }
 
-    public record JobReportResponse(String jobId, int successCount, int failedCount, List<JobFailure> failures) {
+    public record JobReportResponse(
+            String jobId,
+            String jobType,
+            String syncDirection,
+            String state,
+            Instant startedAt,
+            Instant completedAt,
+            int successCount,
+            int failedCount,
+            List<JobFailure> failures) {
+    }
+
+    public record JobSummaryResponse(
+            String jobId,
+            String jobType,
+            String syncDirection,
+            String state,
+            Instant startedAt,
+            Instant completedAt,
+            int successCount,
+            int failedCount) {
+    }
+
+    public record JobHistoryResponse(List<JobSummaryResponse> jobs) {
     }
 
     public record ErrorResponse(String code, String message) {

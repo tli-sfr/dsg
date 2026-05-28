@@ -36,4 +36,23 @@ public class DirectorySyncTimeRepository {
                 frequencyId,
                 cronExpression);
     }
+
+    public void recordLatestJobCompletion(
+            String accountId, int directoryTypeId, long jobId, String terminalState) {
+        jdbcTemplate.update(
+                """
+                        UPDATE directory_sync_time dst
+                        JOIN job j ON j.id = ?
+                        JOIN job_state s ON s.state = ?
+                        SET dst.latest_job_id = j.id,
+                            dst.latest_job_start_time = j.created_on,
+                            dst.latest_job_end_time = j.updated_on,
+                            dst.latest_job_state = s.id
+                        WHERE dst.account_id = ? AND dst.directory_type_id = ?
+                        """,
+                jobId,
+                terminalState,
+                accountId,
+                directoryTypeId);
+    }
 }
