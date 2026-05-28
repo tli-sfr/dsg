@@ -1,0 +1,17 @@
+spring:
+  application:
+    name: dsg-api
+  datasource:
+    url: jdbc:mysql://localhost:3306/dsb
+    username: dsg
+    password: dsg_dev
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+
+dsg:
+  crypto:
+    secret-key: local-dev-only-change-me
+
+server:
+  port: 8080

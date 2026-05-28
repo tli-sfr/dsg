@@ -14,7 +14,6 @@ import com.ringcentral.dsg.api.model.AdminApiModels.ProvisioningRuleRequest;
 import com.ringcentral.dsg.api.model.AdminApiModels.SchedulerRequest;
 import org.springframework.stereotype.Service;
 
-import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -24,44 +23,39 @@ import java.util.concurrent.ConcurrentHashMap;
 @Service
 public class AdminApiService {
 
-    private final Map<String, DirectoryRecord> directoryByAccount = new ConcurrentHashMap<>();
-    private final Map<String, DirectoryOAuthRequest> oauthByAccount = new ConcurrentHashMap<>();
+    private final DirectoryConfigService directoryConfigService;
     private final Map<String, SchedulerRequest> schedulerByAccount = new ConcurrentHashMap<>();
     private final Map<String, AttributeMappingRequest> mappingsByAccount = new ConcurrentHashMap<>();
     private final Map<String, ProvisioningRuleRequest> ruleByAccount = new ConcurrentHashMap<>();
     private final Map<String, JobRecord> activeJobByAccount = new ConcurrentHashMap<>();
     private final Map<String, JobReportResponse> reportByJobId = new ConcurrentHashMap<>();
 
+    public AdminApiService(DirectoryConfigService directoryConfigService) {
+        this.directoryConfigService = directoryConfigService;
+    }
+
     public void createDirectory(String accountId, DirectoryConfigRequest request) {
-        directoryByAccount.put(accountId, new DirectoryRecord(request.directoryType().name(), null, false));
+        directoryConfigService.createDirectory(accountId, request);
     }
 
     public void updateDirectory(String accountId, DirectoryUpdateRequest request) {
-        DirectoryRecord current = directoryByAccount.getOrDefault(accountId, new DirectoryRecord("Unknown", null, false));
-        boolean active = request.active() != null ? request.active() : current.active();
-        String groupId = request.directoryGroupId() != null ? request.directoryGroupId() : current.directoryGroupId();
-        directoryByAccount.put(accountId, new DirectoryRecord(current.directoryType(), groupId, active));
+        directoryConfigService.updateDirectory(accountId, request);
     }
 
     public DirectoryResponse getDirectory(String accountId) {
-        DirectoryRecord record = directoryByAccount.getOrDefault(accountId, new DirectoryRecord("Unknown", null, false));
-        return new DirectoryResponse(record.directoryType(), record.directoryGroupId(), record.active(), oauthByAccount.containsKey(accountId));
+        return directoryConfigService.getDirectory(accountId);
     }
 
     public void putOAuth(String accountId, DirectoryOAuthRequest request) {
-        oauthByAccount.put(accountId, request);
+        directoryConfigService.putOAuth(accountId, request);
     }
 
     public DirectoryOAuthResponse getOAuth(String accountId) {
-        DirectoryOAuthRequest request = oauthByAccount.get(accountId);
-        if (request == null) {
-            return new DirectoryOAuthResponse(null, null, null);
-        }
-        return new DirectoryOAuthResponse(request.directoryType().name(), maskClientId(request.clientId()), Instant.now().plusSeconds(3600));
+        return directoryConfigService.getOAuth(accountId);
     }
 
     public boolean testOAuth(String accountId) {
-        return oauthByAccount.containsKey(accountId);
+        return directoryConfigService.testOAuth(accountId);
     }
 
     public void configureScheduler(String accountId, SchedulerRequest request) {
@@ -89,16 +83,6 @@ public class AdminApiService {
 
     public JobReportResponse getJobReport(String jobId) {
         return reportByJobId.getOrDefault(jobId, new JobReportResponse(jobId, 0, 0, List.of(new JobFailure(null, "Report not found"))));
-    }
-
-    private String maskClientId(String clientId) {
-        if (clientId == null || clientId.length() <= 4) {
-            return "****";
-        }
-        return clientId.substring(0, 2) + "****" + clientId.substring(clientId.length() - 2);
-    }
-
-    private record DirectoryRecord(String directoryType, String directoryGroupId, boolean active) {
     }
 
     private record JobRecord(String jobId, boolean terminal) {
