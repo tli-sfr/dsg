@@ -1,0 +1,11 @@
+target/
+config/java-truststore.jks
+config/zscaler-root-ca.pem
+.idea/
+*.iml
+.classpath
+.project
+.settings/
+.env
+.env.local
+*.log
