@@ -48,4 +48,19 @@ class DirectoryControllerIT {
                 .andExpect(jsonPath("$.directoryGroupId").value("group-sales"))
                 .andExpect(jsonPath("$.active").value(true));
     }
+
+    @Test
+    void rejectsIncompleteOAuthConfig() throws Exception {
+        mockMvc.perform(put("/dsg/v1/acct-2/directory/oauth")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "directoryType": "Okta",
+                                  "authFlow": "CLIENT_CREDENTIALS",
+                                  "clientId": "cid-1"
+                                }
+                                """))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("BAD_REQUEST"));
+    }
 }

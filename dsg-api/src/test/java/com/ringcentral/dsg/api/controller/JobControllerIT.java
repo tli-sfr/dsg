@@ -39,4 +39,20 @@ class JobControllerIT {
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.code").value("JOB_ALREADY_RUNNING"));
     }
+
+    @Test
+    void rejectsUnknownJobType() throws Exception {
+        String badRequest = """
+                {
+                  "jobType": "UNKNOWN",
+                  "externalUserIds": []
+                }
+                """;
+
+        mockMvc.perform(post("/dsg/v1/acct-3/jobs")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(badRequest))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("BAD_REQUEST"));
+    }
 }
