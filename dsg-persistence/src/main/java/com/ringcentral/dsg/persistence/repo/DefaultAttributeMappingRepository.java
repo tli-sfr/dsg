@@ -30,7 +30,7 @@ public class DefaultAttributeMappingRepository {
                 (rs, rowNum) -> new AttributeMappingView(
                         rs.getString("attribute_path"),
                         rs.getString("attribute_name"),
-                        rs.getString("attribute_name"),
+                        rs.getString("rc_attribute_name"),
                         rs.getInt("display_sequence")),
                 directoryTypeId,
                 directionId);
