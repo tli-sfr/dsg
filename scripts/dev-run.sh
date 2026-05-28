@@ -10,6 +10,11 @@ echo "Building modules (skip tests)..."
 mvn install -pl dsg-api -am -DskipTests -q
 
 echo ""
-echo "Starting DSG backend on http://localhost:8080"
+echo "Starting DSG backend on http://localhost:8080 (profile: local if application-local.yml exists)"
 echo "Press Ctrl+C to stop."
-mvn -pl dsg-api spring-boot:run
+if [[ -f "$ROOT/dsg-api/src/main/resources/application-local.yml" ]]; then
+  mvn -pl dsg-api spring-boot:run -Dspring-boot.run.profiles=local
+else
+  echo "Tip: copy dsg-api/src/main/resources/application-local.yml.example to application-local.yml for RC OAuth."
+  mvn -pl dsg-api spring-boot:run
+fi

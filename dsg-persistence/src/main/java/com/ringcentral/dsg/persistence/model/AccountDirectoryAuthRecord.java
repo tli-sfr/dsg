@@ -8,5 +8,6 @@ public record AccountDirectoryAuthRecord(
         String directoryGroupId,
         String etmSubscriberId,
         Long oauthConfigId,
+        String rcRefreshToken,
         boolean active) {
 }

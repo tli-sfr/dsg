@@ -45,6 +45,15 @@ Open `http://localhost:5173/directory-integration?accountId=demo-acct` (proxies 
 
 RC OAuth standalone: see [docs/api/rc-oauth-dev-setup.md](docs/api/rc-oauth-dev-setup.md).
 
+**RingCentral OAuth (local):**
+
+```bash
+cp dsg-api/src/main/resources/application-local.yml.example \
+   dsg-api/src/main/resources/application-local.yml
+# Edit application-local.yml — set client-id and client-secret
+./scripts/dev-run.sh   # auto-activates profile `local` when file exists
+```
+
 **Build / test:**
 
 ```bash

@@ -1,33 +1,148 @@
-import { Link, useSearchParams } from 'react-router-dom';
+import { useEffect, useState } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
+import { api } from '../api/client';
 
 /**
- * Standalone RC 3LO callback — exchange code via RingCentral token endpoint
- * when VITE_RC_CLIENT_ID is configured. See docs/api/rc-oauth-dev-setup.md.
+ * RingCentral 3LO callback — exchanges authorization code on the Java server.
  */
 export function OAuthCallbackPage() {
   const [params] = useSearchParams();
+  const navigate = useNavigate();
   const code = params.get('code');
+  const state = params.get('state');
   const oauthError = params.get('error');
+  const [status, setStatus] = useState<'pending' | 'success' | 'error'>('pending');
+  const [message, setMessage] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (oauthError) {
+      setStatus('error');
+      setMessage(oauthError);
+      return;
+    }
+    if (!code || !state) {
+      setStatus('error');
+      setMessage('Missing authorization code or state in callback URL.');
+      return;
+    }
+
+    const normalizedState = decodeURIComponent(state);
+    const resolvedAccountId =
+      sessionStorage.getItem('rc_oauth_account_id') ||
+      accountIdFromState(normalizedState) ||
+      '';
+    const storedState = sessionStorage.getItem('rc_oauth_state');
+    const dashboardPath = `/directory-integration?accountId=${encodeURIComponent(resolvedAccountId)}`;
+    const exchangeKey = `rc_oauth_exchanged_${code}`;
+
+    if (!resolvedAccountId) {
+      setStatus('error');
+      setMessage('Could not determine account ID from OAuth state.');
+      return;
+    }
+
+    if (storedState && storedState !== normalizedState) {
+      setStatus('error');
+      setMessage('OAuth state mismatch — possible CSRF attempt.');
+      return;
+    }
+
+    let ignoreStateUpdates = false;
+    let pollId: number | undefined;
+
+    function goToDashboard() {
+      sessionStorage.removeItem('rc_oauth_state');
+      sessionStorage.removeItem('rc_oauth_account_id');
+      navigate(dashboardPath, { replace: true });
+    }
+
+    function waitForConnection() {
+      pollId = window.setInterval(async () => {
+        if (sessionStorage.getItem(exchangeKey) === 'done') {
+          if (pollId !== undefined) window.clearInterval(pollId);
+          goToDashboard();
+          return;
+        }
+        try {
+          const oauthStatus = await api.getRcOAuthStatus(resolvedAccountId);
+          if (oauthStatus.connected) {
+            sessionStorage.setItem(exchangeKey, 'done');
+            if (pollId !== undefined) window.clearInterval(pollId);
+            goToDashboard();
+          }
+        } catch {
+          /* keep polling */
+        }
+      }, 400);
+    }
+
+    if (sessionStorage.getItem(exchangeKey) === 'done') {
+      goToDashboard();
+      return;
+    }
+
+    async function run() {
+      try {
+        const oauthStatus = await api.getRcOAuthStatus(resolvedAccountId);
+        if (oauthStatus.connected) {
+          sessionStorage.setItem(exchangeKey, 'done');
+          goToDashboard();
+          return;
+        }
+      } catch {
+        /* proceed with exchange */
+      }
+
+      if (sessionStorage.getItem(exchangeKey) === 'in_progress') {
+        waitForConnection();
+        return;
+      }
+
+      sessionStorage.setItem(exchangeKey, 'in_progress');
+      try {
+        await api.exchangeRcOAuthToken(resolvedAccountId, { code, state: normalizedState });
+        sessionStorage.setItem(exchangeKey, 'done');
+        if (!ignoreStateUpdates) {
+          setStatus('success');
+        }
+        goToDashboard();
+      } catch (e) {
+        sessionStorage.removeItem(exchangeKey);
+        if (!ignoreStateUpdates) {
+          setStatus('error');
+          setMessage(e instanceof Error ? e.message : 'Token exchange failed');
+        }
+      }
+    }
+
+    run();
+    return () => {
+      ignoreStateUpdates = true;
+      if (pollId !== undefined) {
+        window.clearInterval(pollId);
+      }
+    };
+  }, [code, navigate, oauthError, state]);
 
   return (
     <div className="mx-auto max-w-lg p-8">
       <h1 className="text-xl font-semibold text-rc-navy">OAuth callback</h1>
-      {oauthError && (
-        <p className="mt-4 text-red-700">Error: {oauthError}</p>
+      {status === 'pending' && (
+        <p className="mt-4 text-sm text-slate-600">Exchanging authorization code…</p>
       )}
-      {code && (
-        <p className="mt-4 text-sm text-slate-600">
-          Authorization code received. Wire token exchange with{' '}
-          <code className="rounded bg-slate-100 px-1">VITE_RC_CLIENT_ID</code> per{' '}
-          <code>docs/api/rc-oauth-dev-setup.md</code>.
+      {status === 'success' && (
+        <p className="mt-4 text-sm text-green-700">
+          RingCentral login successful. Redirecting to dashboard…
         </p>
       )}
-      {!code && !oauthError && (
-        <p className="mt-4 text-sm text-slate-500">No authorization code in query string.</p>
+      {status === 'error' && (
+        <p className="mt-4 text-sm text-red-700">Error: {message}</p>
       )}
-      <Link to="/directory-integration" className="mt-6 inline-block text-rc-orange">
-        Back to dashboard
-      </Link>
     </div>
   );
+}
+
+function accountIdFromState(state: string): string | null {
+  const colon = state.indexOf(':');
+  return colon > 0 ? state.substring(0, colon) : null;
 }

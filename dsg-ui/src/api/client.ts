@@ -22,13 +22,18 @@ async function request<T>(
     ...init,
   });
   if (!response.ok) {
-    let error: ApiError = { code: 'HTTP_ERROR', message: response.statusText };
+    const fallback = `Request failed (${response.status})`;
+    let message = response.statusText || fallback;
     try {
-      error = await response.json();
+      const body = (await response.json()) as ApiError & {
+        error?: string;
+        path?: string;
+      };
+      message = body.message || body.error || body.code || fallback;
     } catch {
-      /* ignore */
+      /* non-JSON error body */
     }
-    throw new Error(error.message || error.code);
+    throw new Error(message);
   }
   if (response.status === 204) {
     return undefined as T;
@@ -102,4 +107,27 @@ export const api = {
 
   listJobs: (accountId: string, limit = 10) =>
     request<{ jobs: JobSummary[] }>(accountId, `/jobs?limit=${limit}`),
+
+  getRcOAuthStatus: (accountId: string) =>
+    request<{ configured: boolean; connected: boolean }>(accountId, '/rc/oauth/status'),
+
+  getRcOAuthSession: (accountId: string) =>
+    request<{
+      rcAccountId: string;
+      extensionId: number;
+      extensionNumber: string;
+      extensionName: string | null;
+    }>(accountId, '/rc/oauth/session'),
+
+  getRcAuthorizeUrl: (accountId: string) =>
+    request<{ authorizeUrl: string; state: string }>(accountId, '/rc/oauth/authorize-url'),
+
+  exchangeRcOAuthToken: (
+    accountId: string,
+    body: { code: string; state: string },
+  ) =>
+    request<{ status: string }>(accountId, '/rc/oauth/token', {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
 };

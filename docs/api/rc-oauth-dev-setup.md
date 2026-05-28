@@ -11,33 +11,43 @@ Embedded Service Web may pass tokens via JWL in production; this doc covers **lo
 ## Prerequisites
 
 1. RingCentral developer app with **3-legged OAuth** enabled.
-2. Redirect URI registered to match local hostname (not raw `localhost` if app forbids it).
+2. Redirect URI registered to match local callback (e.g. `http://localhost:5173/oauth/callback`).
 3. Client ID and secret from app owner (not committed to git).
 
 ---
 
-## `/etc/hosts` setup
+## Backend configuration
 
-Map a stable hostname to localhost:
+### General (committed) — `dsg-api/src/main/resources/application.yml`
 
-```
-127.0.0.1  dsg.local
-```
+Placeholder keys are substituted at deploy time via environment variables:
 
-Example redirect URI: `https://dsg.local:5173/oauth/callback`
+| Property | Env var | Default |
+|----------|---------|---------|
+| `dsg.rc.client-id` | `DSG_RC_CLIENT_ID` | empty |
+| `dsg.rc.client-secret` | `DSG_RC_CLIENT_SECRET` | empty |
+| `dsg.rc.server-url` | `DSG_RC_SERVER_URL` | `https://platform.devtest.ringcentral.com` |
+| `dsg.rc.redirect-uri` | `DSG_RC_REDIRECT_URI` | `http://localhost:5173/oauth/callback` |
 
----
-
-## Environment variables (placeholder)
+### Local dev (gitignored) — `application-local.yml`
 
 ```bash
-RC_CLIENT_ID=<provided-later>
-RC_CLIENT_SECRET=<provided-later>
-RC_SERVER_URL=https://platform.devtest.ringcentral.com
-RC_REDIRECT_URI=https://dsg.local:5173/oauth/callback
+cp dsg-api/src/main/resources/application-local.yml.example \
+   dsg-api/src/main/resources/application-local.yml
 ```
 
-Store in `.env.local` (gitignored).
+Edit `application-local.yml` and set your Client ID and Client Secret:
+
+```yaml
+dsg:
+  rc:
+    client-id: <your-rc-client-id>
+    client-secret: <your-rc-client-secret>
+    server-url: https://platform.devtest.ringcentral.com
+    redirect-uri: http://localhost:5173/oauth/callback
+```
+
+Start backend with the `local` profile ( `./scripts/dev-run.sh` activates it when the file exists).
 
 ---
 
@@ -46,20 +56,28 @@ Store in `.env.local` (gitignored).
 ```mermaid
 sequenceDiagram
   participant UI as Admin_UI
-  participant RC as RingCentral_OAuth
   participant API as DSG_API
+  participant RC as RingCentral_OAuth
 
-  UI->>RC: Authorize redirect
-  RC->>UI: callback ?code=
-  UI->>RC: Exchange code for tokens
-  RC->>UI: access_token refresh_token
-  UI->>API: API calls with Bearer token
+  UI->>API: GET /rc/oauth/status
+  API->>UI: configured, connected?
+  UI->>API: GET /rc/oauth/authorize-url
+  API->>UI: authorizeUrl + state
+  UI->>RC: Redirect to authorize
+  RC->>UI: callback ?code=&state=
+  UI->>API: POST /rc/oauth/token { code, state }
+  API->>RC: Exchange code (client_secret server-side)
+  RC->>API: access_token + refresh_token
+  API->>API: Encrypt refresh_token → account_directory_auth.rc_refresh_token
+  API->>UI: OK
 ```
 
-1. User clicks **Login** → redirect to RC authorize URL.
-2. User consents → redirect to `RC_REDIRECT_URI` with `code`.
-3. UI exchanges `code` for `access_token` (server-side or secure BFF recommended for `client_secret`).
-4. UI attaches `Authorization: Bearer {access_token}` to DSG admin calls that proxy RC, or DSG stores short-lived session server-side (implementation choice).
+1. User opens admin UI → **RcAuthGuard** checks `/rc/oauth/status`.
+2. If not connected, UI fetches authorize URL and redirects to RingCentral login.
+3. After consent, callback page POSTs the code to the Java server.
+4. Server exchanges the code using `client-id` / `client-secret` from config.
+5. Refresh token is AES-256 encrypted (same key as directory client secrets) and stored in `account_directory_auth.rc_refresh_token`.
+6. Sync jobs call `RcAuthPort.obtainAccessToken(accountId)` to refresh access tokens for RingCentral API calls.
 
 **Note:** Directory (IDP) OAuth is separate — [directory-auth-api-spec.md](directory-auth-api-spec.md).
 
@@ -67,8 +85,8 @@ sequenceDiagram
 
 ## Security
 
-- Never commit `RC_CLIENT_SECRET`.
-- Use HTTPS locally (Vite/dev cert or reverse proxy) if RC requires HTTPS redirect.
+- Never commit `application-local.yml` or `RC_CLIENT_SECRET`.
+- Client secret stays on the server; the browser never sees it.
 - Rotate refresh tokens per RC policy.
 
 ---
