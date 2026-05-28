@@ -51,6 +51,11 @@
         <version>${project.version}</version>
       </dependency>
       <dependency>
+        <groupId>com.ringcentral.dsg</groupId>
+        <artifactId>dsg-worker</artifactId>
+        <version>${project.version}</version>
+      </dependency>
+      <dependency>
         <groupId>software.amazon.awssdk</groupId>
         <artifactId>bom</artifactId>
         <version>${aws-sdk.version}</version>
