@@ -38,7 +38,11 @@ async function request<T>(
   if (response.status === 204) {
     return undefined as T;
   }
-  return response.json() as Promise<T>;
+  const text = await response.text();
+  if (!text) {
+    return undefined as T;
+  }
+  return JSON.parse(text) as T;
 }
 
 export const api = {
@@ -47,7 +51,7 @@ export const api = {
 
   updateDirectory: (
     accountId: string,
-    body: { directoryGroupId?: string; active?: boolean },
+    body: { directoryGroupId?: string; directoryGroupName?: string; active?: boolean },
   ) =>
     request<void>(accountId, '/directory', {
       method: 'PUT',
@@ -80,7 +84,11 @@ export const api = {
     accountId: string,
     body: { code: string; state: string },
   ) =>
-    request<{ status: string }>(accountId, '/directory/oauth/token', {
+    request<{
+      status: string;
+      connectedUserFirstName: string | null;
+      connectedUserLastName: string | null;
+    }>(accountId, '/directory/oauth/token', {
       method: 'POST',
       body: JSON.stringify(body),
     }),
@@ -88,8 +96,11 @@ export const api = {
   disconnectDirectoryOAuth: (accountId: string) =>
     request<void>(accountId, '/directory/oauth', { method: 'DELETE' }),
 
-  listDirectoryGroups: (accountId: string) =>
-    request<{ groups: { id: string; name: string }[] }>(accountId, '/directory/groups'),
+  searchDirectoryGroups: (accountId: string, search: string) =>
+    request<{ groups: { id: string; name: string }[] }>(
+      accountId,
+      `/directory/groups?search=${encodeURIComponent(search)}`,
+    ),
 
   createDirectory: (accountId: string, directoryType: DirectoryType) =>
     request<void>(accountId, '/directory', {

@@ -5,6 +5,7 @@ export type DeprovisioningType = 'FULL_DELETE' | 'RECLAIM_RESOURCE' | 'DISABLE_O
 export interface DirectoryResponse {
   directoryType: string;
   directoryGroupId: string | null;
+  directoryGroupName: string | null;
   active: boolean;
   connected: boolean;
 }
@@ -18,6 +19,8 @@ export interface DirectoryOAuthConfig {
   callbackUrl: string;
   connected: boolean;
   tokenExpiresAt: string | null;
+  connectedUserFirstName: string | null;
+  connectedUserLastName: string | null;
 }
 
 export interface JobReportResponse {

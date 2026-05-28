@@ -2,6 +2,7 @@ package com.ringcentral.dsg.api.service;
 
 import com.ringcentral.dsg.api.directory.DirectoryIdpOAuthService;
 import com.ringcentral.dsg.api.model.AdminApiModels.DirectoryConfigRequest;
+import com.ringcentral.dsg.api.model.AdminApiModels.DirectoryOAuthConnectResponse;
 import com.ringcentral.dsg.api.model.AdminApiModels.DirectoryOAuthConfigResponse;
 import com.ringcentral.dsg.api.model.AdminApiModels.DirectoryOAuthRequest;
 import com.ringcentral.dsg.api.model.AdminApiModels.DirectoryOAuthResponse;
@@ -41,7 +42,11 @@ public class DirectoryConfigService {
     }
 
     public void updateDirectory(String accountId, DirectoryUpdateRequest request) {
-        authRepository.update(accountId, request.directoryGroupId(), request.active());
+        authRepository.update(
+                accountId,
+                request.directoryGroupId(),
+                request.directoryGroupName(),
+                request.active());
     }
 
     public DirectoryResponse getDirectory(String accountId) {
@@ -49,9 +54,10 @@ public class DirectoryConfigService {
                 .map(record -> new DirectoryResponse(
                         record.directoryTypeName(),
                         record.directoryGroupId(),
+                        record.directoryGroupName(),
                         record.active(),
                         oauthRepository.hasRefreshToken(accountId)))
-                .orElse(new DirectoryResponse("Unknown", null, false, false));
+                .orElse(new DirectoryResponse("Unknown", null, null, false, false));
     }
 
     public void putOAuth(String accountId, DirectoryOAuthRequest request) {
@@ -81,16 +87,16 @@ public class DirectoryConfigService {
         return directoryIdpOAuthService.buildAuthorizeUrl(accountId);
     }
 
-    public void exchangeDirectoryOAuthToken(String accountId, DirectoryOAuthTokenRequest request) {
-        directoryIdpOAuthService.exchangeAuthorizationCode(accountId, request);
+    public DirectoryOAuthConnectResponse exchangeDirectoryOAuthToken(String accountId, DirectoryOAuthTokenRequest request) {
+        return directoryIdpOAuthService.exchangeAuthorizationCode(accountId, request);
     }
 
     public void disconnectDirectoryOAuth(String accountId) {
         directoryIdpOAuthService.disconnect(accountId);
     }
 
-    public DirectoryGroupsResponse listDirectoryGroups(String accountId) {
-        return new DirectoryGroupsResponse(directoryIdpOAuthService.listGroups(accountId));
+    public DirectoryGroupsResponse listDirectoryGroups(String accountId, String search) {
+        return new DirectoryGroupsResponse(directoryIdpOAuthService.searchGroups(accountId, search));
     }
 
     private int resolveDirectoryTypeId(String directoryTypeName) {

@@ -48,7 +48,7 @@ class JobPipelineIT extends AbstractApiIntegrationTest {
     @BeforeEach
     void seedAccountAndJob() {
         authRepository.upsert("acct-worker", 2, null);
-        authRepository.update("acct-worker", "sales-group", true);
+        authRepository.update("acct-worker", "sales-group", "Sales", true);
         provisioningRuleRepository.upsertRule("acct-worker", "All Users", 1, "{\"match\":\"ALL\"}");
     }
 

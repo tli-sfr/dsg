@@ -1,9 +1,13 @@
 import { Database, Globe, KeyRound } from 'lucide-react';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { api } from '../api/client';
 import type { DirectoryOAuthConfig, DirectoryType } from '../api/types';
 import { useAccountId } from '../components/AccountBar';
-import { Card } from '../components/Card';
+import { ConnectionSuccessBanner } from '../components/ConnectionSuccessBanner';
+import {
+  DirectoryGroupPickerDialog,
+  type DirectoryGroupOption,
+} from '../components/DirectoryGroupPickerDialog';
 import { openDirectoryOAuthPopup, waitForDirectoryOAuthResult } from '../lib/directoryOAuth';
 
 const PROVIDERS: { value: DirectoryType; label: string; supportsOAuth: boolean }[] = [
@@ -22,14 +26,21 @@ export function DirectoryConfigurationPage() {
   const [azureTenantId, setAzureTenantId] = useState('');
   const [oktaDomain, setOktaDomain] = useState('');
   const [selectedGroupId, setSelectedGroupId] = useState('');
-  const [groups, setGroups] = useState<{ id: string; name: string }[]>([]);
-  const [directory, setDirectory] = useState<{ directoryGroupId: string | null; active: boolean } | null>(null);
+  const [selectedGroupName, setSelectedGroupName] = useState('');
+  const [groupPickerOpen, setGroupPickerOpen] = useState(false);
+  const [connecting, setConnecting] = useState(false);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [successBanner, setSuccessBanner] = useState<{
+    firstName: string | null;
+    lastName: string | null;
+  } | null>(null);
+  const cleanupOAuthWait = useRef<(() => void) | null>(null);
 
   const connected = config?.connected ?? false;
   const provider = PROVIDERS.find((p) => p.value === directoryType);
+  const formLocked = connected || connecting || busy;
 
   const refresh = useCallback(async () => {
     setError(null);
@@ -42,15 +53,21 @@ export function DirectoryConfigurationPage() {
       if (oauthConfig.directoryType) {
         setDirectoryType(oauthConfig.directoryType as DirectoryType);
       }
-      setDirectory(dir);
+      if (oauthConfig.clientId) {
+        setClientId(oauthConfig.clientId);
+      }
+      if (oauthConfig.azureTenantId) {
+        setAzureTenantId(oauthConfig.azureTenantId);
+      }
+      if (oauthConfig.oktaDomain) {
+        setOktaDomain(oauthConfig.oktaDomain);
+      }
       if (dir?.directoryGroupId) {
         setSelectedGroupId(dir.directoryGroupId);
-      }
-      if (oauthConfig.connected) {
-        const groupList = await api.listDirectoryGroups(accountId);
-        setGroups(groupList.groups);
+        setSelectedGroupName(dir.directoryGroupName ?? '');
       } else {
-        setGroups([]);
+        setSelectedGroupId('');
+        setSelectedGroupName('');
       }
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to load configuration');
@@ -59,10 +76,22 @@ export function DirectoryConfigurationPage() {
 
   useEffect(() => {
     refresh();
+    return () => {
+      cleanupOAuthWait.current?.();
+    };
   }, [refresh]);
 
+  function showConnectionSuccessBanner(firstName: string | null, lastName: string | null) {
+    setSuccessBanner({ firstName, lastName });
+  }
+
+  function endConnectAttempt() {
+    setConnecting(false);
+    cleanupOAuthWait.current = null;
+  }
+
   async function handleConnect() {
-    setBusy(true);
+    setConnecting(true);
     setError(null);
     setMessage(null);
     try {
@@ -90,28 +119,38 @@ export function DirectoryConfigurationPage() {
 
       const { authorizeUrl, state } = await api.getDirectoryAuthorizeUrl(accountId);
       const popup = openDirectoryOAuthPopup(authorizeUrl, state);
-      waitForDirectoryOAuthResult(
+      cleanupOAuthWait.current = waitForDirectoryOAuthResult(
         popup,
-        async () => {
+        accountId,
+        async (user) => {
+          let firstName = user.connectedUserFirstName;
+          let lastName = user.connectedUserLastName;
+          if (!firstName && !lastName) {
+            const oauthConfig = await api.getDirectoryOAuthConfig(accountId);
+            firstName = oauthConfig.connectedUserFirstName;
+            lastName = oauthConfig.connectedUserLastName;
+          }
+          showConnectionSuccessBanner(firstName, lastName);
           setMessage('Directory connected successfully.');
           setClientSecret('');
           await refresh();
-          setBusy(false);
+          endConnectAttempt();
         },
         (err) => {
           setError(err);
-          setBusy(false);
+          endConnectAttempt();
         },
       );
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Connect failed');
-      setBusy(false);
+      endConnectAttempt();
     }
   }
 
   async function handleDisconnect() {
     setBusy(true);
     setError(null);
+    setMessage(null);
     try {
       await api.disconnectDirectoryOAuth(accountId);
       setMessage('Directory disconnected.');
@@ -124,14 +163,19 @@ export function DirectoryConfigurationPage() {
     }
   }
 
-  async function handleSaveGroup() {
-    if (!selectedGroupId) return;
+  async function handleSelectGroup(group: DirectoryGroupOption) {
     setBusy(true);
     setError(null);
+    setMessage(null);
     try {
-      await api.updateDirectory(accountId, { directoryGroupId: selectedGroupId, active: true });
+      await api.updateDirectory(accountId, {
+        directoryGroupId: group.id,
+        directoryGroupName: group.name,
+        active: true,
+      });
+      setSelectedGroupId(group.id);
+      setSelectedGroupName(group.name);
       setMessage('Directory group saved.');
-      await refresh();
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to save group');
     } finally {
@@ -139,8 +183,17 @@ export function DirectoryConfigurationPage() {
     }
   }
 
+  const groupDisplayValue = selectedGroupName || selectedGroupId;
+
   return (
     <div className="mx-auto max-w-3xl space-y-6 p-6">
+      {successBanner && (
+        <ConnectionSuccessBanner
+          firstName={successBanner.firstName}
+          lastName={successBanner.lastName}
+          onDismiss={() => setSuccessBanner(null)}
+        />
+      )}
       <div>
         <h1 className="text-2xl font-semibold text-rc-navy">Directory Configuration</h1>
         <p className="text-sm text-slate-500">
@@ -162,11 +215,15 @@ export function DirectoryConfigurationPage() {
               <p className="text-sm text-slate-500">Connect to your directory provider via OAuth</p>
             </div>
           </div>
-          {connected && (
+          {connected ? (
             <span className="rounded-full bg-green-100 px-3 py-1 text-xs font-semibold tracking-wide text-green-700">
               CONNECTED
             </span>
-          )}
+          ) : connecting ? (
+            <span className="rounded-full bg-amber-100 px-3 py-1 text-xs font-semibold tracking-wide text-amber-700">
+              CONNECTING…
+            </span>
+          ) : null}
         </header>
 
         <div className="space-y-6 px-6 py-5">
@@ -177,9 +234,9 @@ export function DirectoryConfigurationPage() {
             <div className="relative">
               <Database className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
               <select
-                className="w-full appearance-none rounded-lg border border-slate-300 py-2.5 pl-10 pr-4 text-sm"
+                className="w-full appearance-none rounded-lg border border-slate-300 bg-white py-2.5 pl-10 pr-4 text-sm disabled:bg-slate-50"
                 value={directoryType}
-                disabled={busy}
+                disabled={formLocked}
                 onChange={(e) => setDirectoryType(e.target.value as DirectoryType)}
               >
                 {PROVIDERS.map((p) => (
@@ -200,10 +257,10 @@ export function DirectoryConfigurationPage() {
                 <div className="relative">
                   <KeyRound className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
                   <input
-                    className="w-full rounded-lg border border-slate-300 py-2.5 pl-10 pr-4 text-sm"
+                    className="w-full rounded-lg border border-slate-300 py-2.5 pl-10 pr-4 text-sm disabled:bg-slate-50"
                     placeholder="Azure Tenant ID"
                     value={azureTenantId}
-                    disabled={busy}
+                    disabled={formLocked}
                     onChange={(e) => setAzureTenantId(e.target.value)}
                   />
                 </div>
@@ -212,10 +269,10 @@ export function DirectoryConfigurationPage() {
                 <div className="relative">
                   <KeyRound className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
                   <input
-                    className="w-full rounded-lg border border-slate-300 py-2.5 pl-10 pr-4 text-sm"
+                    className="w-full rounded-lg border border-slate-300 py-2.5 pl-10 pr-4 text-sm disabled:bg-slate-50"
                     placeholder="Okta domain (https://dev-example.okta.com)"
                     value={oktaDomain}
-                    disabled={busy}
+                    disabled={formLocked}
                     onChange={(e) => setOktaDomain(e.target.value)}
                   />
                 </div>
@@ -223,24 +280,31 @@ export function DirectoryConfigurationPage() {
               <div className="relative">
                 <KeyRound className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
                 <input
-                  className="w-full rounded-lg border border-slate-300 py-2.5 pl-10 pr-4 text-sm"
+                  className="w-full rounded-lg border border-slate-300 py-2.5 pl-10 pr-4 text-sm disabled:bg-slate-50"
                   placeholder="Client ID"
                   value={clientId}
-                  disabled={busy}
+                  disabled={formLocked}
                   onChange={(e) => setClientId(e.target.value)}
                 />
               </div>
-              <div className="relative">
-                <KeyRound className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-                <input
-                  type="password"
-                  className="w-full rounded-lg border border-slate-300 py-2.5 pl-10 pr-4 text-sm"
-                  placeholder="Client Secret"
-                  value={clientSecret}
-                  disabled={busy}
-                  onChange={(e) => setClientSecret(e.target.value)}
-                />
-              </div>
+              {!connected && (
+                <div className="relative">
+                  <KeyRound className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                  <input
+                    type="password"
+                    className="w-full rounded-lg border border-slate-300 py-2.5 pl-10 pr-4 text-sm"
+                    placeholder="Client Secret"
+                    value={clientSecret}
+                    disabled={connecting || busy}
+                    onChange={(e) => setClientSecret(e.target.value)}
+                  />
+                </div>
+              )}
+              {connected && (
+                <p className="text-xs text-slate-500">
+                  Client secret is stored securely. Disconnect to change credentials.
+                </p>
+              )}
             </div>
           </div>
 
@@ -262,61 +326,62 @@ export function DirectoryConfigurationPage() {
         <footer className="flex justify-end gap-3 border-t border-slate-100 px-6 py-4">
           <button
             type="button"
-            disabled={busy || !connected}
+            disabled={!connected || connecting || busy}
             onClick={handleDisconnect}
-            className="rounded-lg border border-red-300 px-5 py-2 text-sm font-medium text-red-600 disabled:opacity-40"
+            className="rounded-lg border border-red-300 px-5 py-2 text-sm font-medium text-red-600 disabled:cursor-not-allowed disabled:opacity-40"
           >
             Disconnect
           </button>
           <button
             type="button"
-            disabled={busy || !provider?.supportsOAuth}
+            disabled={connected || connecting || busy || !provider?.supportsOAuth}
             onClick={handleConnect}
-            className="rounded-lg bg-blue-600 px-5 py-2 text-sm font-medium text-white disabled:opacity-40"
+            className="rounded-lg bg-blue-600 px-5 py-2 text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-40"
           >
-            {busy ? 'Connecting…' : 'Connect'}
+            {connecting ? 'Connecting…' : connected ? 'Connected' : 'Connect'}
           </button>
         </footer>
       </section>
 
       {connected && (
-        <Card title="Directory group">
-          <p className="mb-4 text-sm text-slate-600">
-            Select the directory group whose users will be synced to RingCentral.
-          </p>
-          <div className="flex flex-wrap items-end gap-4">
-            <label className="min-w-[16rem] flex-1 text-sm">
-              Group
-              <select
-                className="mt-1 block w-full rounded border border-slate-300 px-3 py-2"
-                value={selectedGroupId}
-                disabled={busy}
-                onChange={(e) => setSelectedGroupId(e.target.value)}
-              >
-                <option value="">Select a group…</option>
-                {groups.map((g) => (
-                  <option key={g.id} value={g.id}>
-                    {g.name}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <button
-              type="button"
-              disabled={busy || !selectedGroupId}
-              onClick={handleSaveGroup}
-              className="rounded bg-rc-orange px-4 py-2 text-sm font-medium text-white disabled:opacity-40"
-            >
-              Save group
-            </button>
-          </div>
-          {directory?.active && directory.directoryGroupId && (
-            <p className="mt-3 text-sm text-green-700">
-              Active sync group: <span className="font-medium">{directory.directoryGroupId}</span>
+        <section className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+          <header className="border-b border-slate-100 px-6 py-4">
+            <h2 className="text-lg font-semibold text-slate-900">Directory group</h2>
+            <p className="text-sm text-slate-500">
+              Choose the directory group whose users will be provisioned to RingCentral.
             </p>
-          )}
-        </Card>
+          </header>
+          <div className="px-6 py-5">
+            <label className="mb-2 block text-xs font-semibold uppercase tracking-wide text-slate-500">
+              Group
+            </label>
+            <div className="flex flex-wrap items-center gap-3">
+              <input
+                className="min-w-[16rem] flex-1 rounded-lg border border-slate-300 bg-slate-50 py-2.5 px-4 text-sm text-slate-700 disabled:cursor-default"
+                readOnly
+                disabled
+                value={groupDisplayValue}
+                placeholder="Please select a directory group for user provisioning"
+              />
+              <button
+                type="button"
+                disabled={busy}
+                onClick={() => setGroupPickerOpen(true)}
+                className="rounded-lg border border-slate-300 bg-white px-5 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-40"
+              >
+                Group
+              </button>
+            </div>
+          </div>
+        </section>
       )}
+
+      <DirectoryGroupPickerDialog
+        accountId={accountId}
+        open={groupPickerOpen}
+        onClose={() => setGroupPickerOpen(false)}
+        onSelect={(group) => void handleSelectGroup(group)}
+      />
     </div>
   );
 }

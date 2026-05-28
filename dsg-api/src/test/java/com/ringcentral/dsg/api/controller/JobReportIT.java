@@ -58,7 +58,7 @@ class JobReportIT extends AbstractApiIntegrationTest {
                 ACCOUNT);
         jdbcTemplate.update("DELETE FROM job WHERE account_id = ?", ACCOUNT);
         authRepository.upsert(ACCOUNT, 2, null);
-        authRepository.update(ACCOUNT, "sales-group", true);
+        authRepository.update(ACCOUNT, "sales-group", "Sales", true);
         provisioningRuleRepository.upsertRule(ACCOUNT, "All Users", 1, "{\"match\":\"ALL\"}");
         jdbcTemplate.update(
                 """

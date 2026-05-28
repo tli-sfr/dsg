@@ -1,7 +1,9 @@
 import { NavLink, useSearchParams } from 'react-router-dom';
 
-const tabs = [
-  { to: '/directory-integration', label: 'Directory Integration' },
+type NavTab = { to: string; label: string; end?: boolean };
+
+const tabs: NavTab[] = [
+  { to: '/directory-integration', label: 'Directory Integration', end: true },
   { to: '/directory-integration/configuration', label: 'Directory Configuration' },
 ];
 
@@ -18,6 +20,7 @@ export function AppNav() {
           <NavLink
             key={tab.to}
             to={`${tab.to}${accountQuery}`}
+            end={tab.end ?? false}
             className={({ isActive }) =>
               `border-b-2 py-3 text-sm font-medium ${
                 isActive

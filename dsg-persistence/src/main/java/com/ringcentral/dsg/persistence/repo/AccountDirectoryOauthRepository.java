@@ -39,6 +39,7 @@ public class AccountDirectoryOauthRepository {
                     rs.getString("okta_domain"),
                     rs.getString("scopes"),
                     rs.getString("refresh_token_enc"),
+                    rs.getString("access_token_enc"),
                     toInstant(rs.getTimestamp("access_token_expires_at")));
 
     private final JdbcTemplate jdbcTemplate;
@@ -141,7 +142,8 @@ public class AccountDirectoryOauthRepository {
         String sql = """
                 SELECT o.id, o.account_id, o.directory_type_id, t.directory_type,
                        o.auth_flow, o.client_id, o.client_secret_enc, o.azure_tenant_id,
-                       o.okta_domain, o.scopes, o.refresh_token_enc, o.access_token_expires_at
+                       o.okta_domain, o.scopes, o.refresh_token_enc, o.access_token_enc,
+                       o.access_token_expires_at
                 FROM account_directory_oauth o
                 JOIN directory_type t ON t.id = o.directory_type_id
                 WHERE o.account_id = ?

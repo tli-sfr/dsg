@@ -14,5 +14,6 @@ public record AccountDirectoryOauthCredentialsRecord(
         String oktaDomain,
         String scopes,
         String refreshTokenEnc,
+        String accessTokenEnc,
         Instant accessTokenExpiresAt) {
 }

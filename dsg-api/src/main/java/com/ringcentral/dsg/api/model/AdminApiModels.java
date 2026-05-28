@@ -32,10 +32,15 @@ public final class AdminApiModels {
     public record DirectoryConfigRequest(@NotNull DirectoryType directoryType, String etmSubscriberId) {
     }
 
-    public record DirectoryUpdateRequest(String directoryGroupId, Boolean active) {
+    public record DirectoryUpdateRequest(String directoryGroupId, String directoryGroupName, Boolean active) {
     }
 
-    public record DirectoryResponse(String directoryType, String directoryGroupId, boolean active, boolean connected) {
+    public record DirectoryResponse(
+            String directoryType,
+            String directoryGroupId,
+            String directoryGroupName,
+            boolean active,
+            boolean connected) {
     }
 
     public record DirectoryOAuthRequest(
@@ -59,7 +64,15 @@ public final class AdminApiModels {
             String oktaDomain,
             String callbackUrl,
             boolean connected,
-            Instant tokenExpiresAt) {
+            Instant tokenExpiresAt,
+            String connectedUserFirstName,
+            String connectedUserLastName) {
+    }
+
+    public record DirectoryOAuthConnectResponse(
+            String status,
+            String connectedUserFirstName,
+            String connectedUserLastName) {
     }
 
     public record DirectoryOAuthTokenRequest(@NotBlank String code, @NotBlank String state) {

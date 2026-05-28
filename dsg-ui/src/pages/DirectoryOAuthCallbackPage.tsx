@@ -15,58 +15,150 @@ export function DirectoryOAuthCallbackPage() {
   useEffect(() => {
     if (oauthError) {
       setMessage(oauthError);
-      window.opener?.postMessage(
-        { type: 'directory-oauth-error', message: oauthError },
-        window.location.origin,
-      );
+      notifyOpener({ type: 'directory-oauth-error', message: oauthError });
       return;
     }
     if (!code || !state) {
       const err = 'Missing authorization code or state.';
       setMessage(err);
-      window.opener?.postMessage({ type: 'directory-oauth-error', message: err }, window.location.origin);
+      notifyOpener({ type: 'directory-oauth-error', message: err });
       return;
     }
 
     const normalizedState = decodeURIComponent(state);
     const accountId = accountIdFromState(normalizedState);
-    const storedState = sessionStorage.getItem('directory_oauth_state');
+    const exchangeKey = `directory_oauth_exchanged_${code}`;
 
     if (!accountId) {
       const err = 'Could not determine account ID from OAuth state.';
       setMessage(err);
-      window.opener?.postMessage({ type: 'directory-oauth-error', message: err }, window.location.origin);
+      notifyOpener({ type: 'directory-oauth-error', message: err });
       return;
     }
+    const resolvedAccountId = accountId;
 
-    if (storedState && storedState !== normalizedState) {
-      const err = 'OAuth state mismatch.';
-      setMessage(err);
-      window.opener?.postMessage({ type: 'directory-oauth-error', message: err }, window.location.origin);
-      return;
+    let ignoreStateUpdates = false;
+    let pollId: number | undefined;
+
+    function finishSuccess(user: {
+      connectedUserFirstName: string | null;
+      connectedUserLastName: string | null;
+    }) {
+      sessionStorage.removeItem('directory_oauth_state');
+      if (!ignoreStateUpdates) {
+        setMessage('Connected successfully. Closing…');
+      }
+      notifyOpener({
+        type: 'directory-oauth-success',
+        connectedUserFirstName: user.connectedUserFirstName,
+        connectedUserLastName: user.connectedUserLastName,
+      });
+      window.setTimeout(() => window.close(), 400);
     }
 
-    let cancelled = false;
-
-    async function exchange() {
-      try {
-        await api.exchangeDirectoryOAuthToken(accountId!, { code, state: normalizedState });
-        if (cancelled) return;
-        sessionStorage.removeItem('directory_oauth_state');
-        setMessage('Connected. You can close this window.');
-        window.opener?.postMessage({ type: 'directory-oauth-success' }, window.location.origin);
-        window.close();
-      } catch (e) {
-        if (cancelled) return;
-        const err = e instanceof Error ? e.message : 'Token exchange failed';
+    function finishError(err: string) {
+      sessionStorage.removeItem(exchangeKey);
+      if (!ignoreStateUpdates) {
         setMessage(err);
-        window.opener?.postMessage({ type: 'directory-oauth-error', message: err }, window.location.origin);
+      }
+      notifyOpener({ type: 'directory-oauth-error', message: err });
+    }
+
+    function readStoredUser(): {
+      connectedUserFirstName: string | null;
+      connectedUserLastName: string | null;
+    } {
+      return {
+        connectedUserFirstName: sessionStorage.getItem('directory_oauth_user_first'),
+        connectedUserLastName: sessionStorage.getItem('directory_oauth_user_last'),
+      };
+    }
+
+    function storeUserNames(
+      firstName: string | null | undefined,
+      lastName: string | null | undefined,
+    ) {
+      if (firstName) {
+        sessionStorage.setItem('directory_oauth_user_first', firstName);
+      }
+      if (lastName) {
+        sessionStorage.setItem('directory_oauth_user_last', lastName);
       }
     }
 
-    exchange();
+    async function waitForExchange() {
+      pollId = window.setInterval(async () => {
+        if (sessionStorage.getItem(exchangeKey) === 'done') {
+          if (pollId !== undefined) window.clearInterval(pollId);
+          finishSuccess(readStoredUser());
+          return;
+        }
+        try {
+          const status = await api.getDirectoryOAuthConfig(resolvedAccountId);
+          if (status.connected) {
+            sessionStorage.setItem(exchangeKey, 'done');
+            storeUserNames(status.connectedUserFirstName, status.connectedUserLastName);
+            if (pollId !== undefined) window.clearInterval(pollId);
+            finishSuccess({
+              connectedUserFirstName: status.connectedUserFirstName,
+              connectedUserLastName: status.connectedUserLastName,
+            });
+          }
+        } catch {
+          /* keep polling */
+        }
+      }, 400);
+    }
+
+    if (sessionStorage.getItem(exchangeKey) === 'done') {
+      finishSuccess(readStoredUser());
+      return;
+    }
+
+    async function run() {
+      try {
+        const status = await api.getDirectoryOAuthConfig(resolvedAccountId);
+        if (status.connected) {
+          sessionStorage.setItem(exchangeKey, 'done');
+          storeUserNames(status.connectedUserFirstName, status.connectedUserLastName);
+          finishSuccess({
+            connectedUserFirstName: status.connectedUserFirstName,
+            connectedUserLastName: status.connectedUserLastName,
+          });
+          return;
+        }
+      } catch {
+        /* proceed with exchange */
+      }
+
+      if (sessionStorage.getItem(exchangeKey) === 'in_progress') {
+        waitForExchange();
+        return;
+      }
+
+      sessionStorage.setItem(exchangeKey, 'in_progress');
+      try {
+        const result = await api.exchangeDirectoryOAuthToken(resolvedAccountId, {
+          code: code!,
+          state: normalizedState,
+        });
+        sessionStorage.setItem(exchangeKey, 'done');
+        storeUserNames(result.connectedUserFirstName, result.connectedUserLastName);
+        finishSuccess({
+          connectedUserFirstName: result.connectedUserFirstName,
+          connectedUserLastName: result.connectedUserLastName,
+        });
+      } catch (e) {
+        finishError(e instanceof Error ? e.message : 'Token exchange failed');
+      }
+    }
+
+    run();
     return () => {
-      cancelled = true;
+      ignoreStateUpdates = true;
+      if (pollId !== undefined) {
+        window.clearInterval(pollId);
+      }
     };
   }, [code, oauthError, state]);
 
@@ -76,6 +168,17 @@ export function DirectoryOAuthCallbackPage() {
       <p className="mt-4 text-sm text-slate-600">{message}</p>
     </div>
   );
+}
+
+function notifyOpener(payload: {
+  type: string;
+  message?: string;
+  connectedUserFirstName?: string | null;
+  connectedUserLastName?: string | null;
+}) {
+  if (window.opener && !window.opener.closed) {
+    window.opener.postMessage(payload, window.location.origin);
+  }
 }
 
 function accountIdFromState(state: string): string | null {

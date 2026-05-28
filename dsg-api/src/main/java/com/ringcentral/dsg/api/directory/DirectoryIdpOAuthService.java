@@ -3,6 +3,7 @@ package com.ringcentral.dsg.api.directory;
 import com.ringcentral.dsg.api.config.AppProperties;
 import com.ringcentral.dsg.api.crypto.SecretEncryptionService;
 import com.ringcentral.dsg.api.model.AdminApiModels.DirectoryOAuthRequest;
+import com.ringcentral.dsg.api.model.AdminApiModels.DirectoryOAuthConnectResponse;
 import com.ringcentral.dsg.api.model.AdminApiModels.DirectoryOAuthConfigResponse;
 import com.ringcentral.dsg.api.model.AdminApiModels.DirectoryOAuthTokenRequest;
 import com.ringcentral.dsg.api.model.AdminApiModels.DirectoryGroupItem;
@@ -50,19 +51,25 @@ public class DirectoryIdpOAuthService {
 
     public DirectoryOAuthConfigResponse getConfig(String accountId) {
         return oauthRepository.findCredentialsByAccountId(accountId)
-                .map(creds -> new DirectoryOAuthConfigResponse(
-                        creds.directoryTypeName(),
-                        creds.authFlow(),
-                        maskClientId(creds.clientId()),
-                        creds.azureTenantId(),
-                        creds.oktaDomain(),
-                        appProperties.directoryOAuthCallbackUrl(),
-                        creds.refreshTokenEnc() != null,
-                        creds.accessTokenExpiresAt()))
+                .map(creds -> {
+                    boolean connected = creds.refreshTokenEnc() != null;
+                    ConnectedUser user = connected ? resolveConnectedUser(creds) : ConnectedUser.empty();
+                    return new DirectoryOAuthConfigResponse(
+                            creds.directoryTypeName(),
+                            creds.authFlow(),
+                            maskClientId(creds.clientId()),
+                            creds.azureTenantId(),
+                            creds.oktaDomain(),
+                            appProperties.directoryOAuthCallbackUrl(),
+                            connected,
+                            creds.accessTokenExpiresAt(),
+                            user.firstName(),
+                            user.lastName());
+                })
                 .orElse(new DirectoryOAuthConfigResponse(
                         null, null, null, null, null,
                         appProperties.directoryOAuthCallbackUrl(),
-                        false, null));
+                        false, null, null, null));
     }
 
     public void saveCredentials(String accountId, DirectoryOAuthRequest request) {
@@ -105,7 +112,7 @@ public class DirectoryIdpOAuthService {
         return Map.of("authorizeUrl", authorizeUrl, "state", state);
     }
 
-    public void exchangeAuthorizationCode(String accountId, DirectoryOAuthTokenRequest request) {
+    public DirectoryOAuthConnectResponse exchangeAuthorizationCode(String accountId, DirectoryOAuthTokenRequest request) {
         validateState(accountId, request.state());
         AccountDirectoryOauthCredentialsRecord creds = oauthRepository.findCredentialsByAccountId(accountId)
                 .orElseThrow(() -> new IllegalStateException("IDP OAuth config not found"));
@@ -119,23 +126,63 @@ public class DirectoryIdpOAuthService {
             default -> throw new IllegalArgumentException("Unsupported directory type for token exchange");
         };
         storeTokens(accountId, tokenResponse);
+        markDirectoryConnected(accountId);
+        ConnectedUser user = resolveConnectedUser(
+                creds.directoryTypeName(),
+                creds.oktaDomain(),
+                creds.azureTenantId(),
+                tokenResponse.accessToken());
+        return new DirectoryOAuthConnectResponse("OK", user.firstName(), user.lastName());
     }
 
     public void disconnect(String accountId) {
         oauthRepository.clearOAuthTokens(accountId);
+        authRepository.update(accountId, null, null, false);
     }
 
     public boolean isConnected(String accountId) {
         return oauthRepository.hasRefreshToken(accountId);
     }
 
-    public List<DirectoryGroupItem> listGroups(String accountId) {
+    public List<DirectoryGroupItem> searchGroups(String accountId, String search) {
         if (!isConnected(accountId)) {
             throw new IllegalStateException("Connect to the directory before selecting a group");
         }
-        String directoryType = oauthRepository.findCredentialsByAccountId(accountId)
-                .map(AccountDirectoryOauthCredentialsRecord::directoryTypeName)
-                .orElse("Unknown");
+        if (search == null || search.isBlank()) {
+            return List.of();
+        }
+        String query = search.trim();
+        AccountDirectoryOauthCredentialsRecord creds = oauthRepository.findCredentialsByAccountId(accountId)
+                .orElseThrow(() -> new IllegalStateException("IDP OAuth config not found"));
+        if (creds.accessTokenEnc() == null || creds.accessTokenEnc().isBlank()) {
+            return filterStubGroups(creds.directoryTypeName(), query);
+        }
+        String accessToken = encryptionService.decrypt(creds.accessTokenEnc());
+        try {
+            List<DirectoryIdpGroup> groups = switch (creds.directoryTypeName()) {
+                case "Okta" -> idpOAuthClient.searchOktaGroups(creds.oktaDomain(), accessToken, query);
+                case "Azure" -> idpOAuthClient.searchAzureGroups(accessToken, query);
+                default -> filterStubGroups(creds.directoryTypeName(), query).stream()
+                        .map(item -> new DirectoryIdpGroup(item.id(), item.name()))
+                        .toList();
+            };
+            return groups.stream()
+                    .map(group -> new DirectoryGroupItem(group.id(), group.name()))
+                    .toList();
+        } catch (IllegalStateException ex) {
+            return filterStubGroups(creds.directoryTypeName(), query);
+        }
+    }
+
+    private static List<DirectoryGroupItem> filterStubGroups(String directoryType, String query) {
+        String lowerQuery = query.toLowerCase();
+        return stubGroups(directoryType).stream()
+                .filter(group -> group.name().toLowerCase().contains(lowerQuery)
+                        || group.id().toLowerCase().contains(lowerQuery))
+                .toList();
+    }
+
+    private static List<DirectoryGroupItem> stubGroups(String directoryType) {
         return switch (directoryType) {
             case "Azure" -> List.of(
                     new DirectoryGroupItem("all-users", "All Users"),
@@ -147,6 +194,13 @@ public class DirectoryIdpOAuthService {
                     new DirectoryGroupItem("field-team", "Field Team"));
             default -> List.of(new DirectoryGroupItem("default", "Default group"));
         };
+    }
+
+    private void markDirectoryConnected(String accountId) {
+        if (authRepository.findByAccountId(accountId).isEmpty()) {
+            throw new IllegalStateException("Directory auth record not found for account");
+        }
+        authRepository.update(accountId, null, null, true);
     }
 
     private void storeTokens(String accountId, DirectoryIdpTokenResponse tokenResponse) {
@@ -200,7 +254,7 @@ public class DirectoryIdpOAuthService {
         }
         return switch (request.directoryType().name()) {
             case "Azure" -> "offline_access openid https://graph.microsoft.com/Group.Read.All https://graph.microsoft.com/User.Read.All";
-            case "Okta" -> "openid offline_access okta.groups.read okta.users.read";
+            case "Okta" -> "openid profile offline_access okta.groups.read okta.users.read";
             default -> "openid offline_access";
         };
     }
@@ -216,5 +270,38 @@ public class DirectoryIdpOAuthService {
             return "****";
         }
         return clientId.substring(0, 2) + "****" + clientId.substring(clientId.length() - 2);
+    }
+
+    private ConnectedUser resolveConnectedUser(AccountDirectoryOauthCredentialsRecord creds) {
+        if (creds.accessTokenEnc() == null || creds.accessTokenEnc().isBlank()) {
+            return ConnectedUser.empty();
+        }
+        String accessToken = encryptionService.decrypt(creds.accessTokenEnc());
+        return resolveConnectedUser(creds.directoryTypeName(), creds.oktaDomain(), creds.azureTenantId(), accessToken);
+    }
+
+    private ConnectedUser resolveConnectedUser(
+            String directoryType,
+            String oktaDomain,
+            String azureTenantId,
+            String accessToken) {
+        if (accessToken == null || accessToken.isBlank()) {
+            return ConnectedUser.empty();
+        }
+        DirectoryIdpUserProfile profile = switch (directoryType) {
+            case "Okta" -> idpOAuthClient.fetchOktaUserProfile(oktaDomain, accessToken);
+            case "Azure" -> idpOAuthClient.fetchAzureUserProfile(accessToken);
+            default -> null;
+        };
+        if (profile == null) {
+            return ConnectedUser.empty();
+        }
+        return new ConnectedUser(profile.firstName(), profile.lastName());
+    }
+
+    private record ConnectedUser(String firstName, String lastName) {
+        static ConnectedUser empty() {
+            return new ConnectedUser(null, null);
+        }
     }
 }

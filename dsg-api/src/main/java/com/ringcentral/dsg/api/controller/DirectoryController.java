@@ -2,6 +2,7 @@ package com.ringcentral.dsg.api.controller;
 
 import com.ringcentral.dsg.api.model.AdminApiModels.DirectoryConfigRequest;
 import com.ringcentral.dsg.api.model.AdminApiModels.DirectoryGroupsResponse;
+import com.ringcentral.dsg.api.model.AdminApiModels.DirectoryOAuthConnectResponse;
 import com.ringcentral.dsg.api.model.AdminApiModels.DirectoryOAuthConfigResponse;
 import com.ringcentral.dsg.api.model.AdminApiModels.DirectoryOAuthRequest;
 import com.ringcentral.dsg.api.model.AdminApiModels.DirectoryOAuthResponse;
@@ -20,6 +21,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.Map;
@@ -52,8 +54,10 @@ public class DirectoryController {
     }
 
     @GetMapping("/directory/groups")
-    public ResponseEntity<DirectoryGroupsResponse> listDirectoryGroups(@PathVariable String accountId) {
-        return ResponseEntity.ok(adminApiService.listDirectoryGroups(accountId));
+    public ResponseEntity<DirectoryGroupsResponse> listDirectoryGroups(
+            @PathVariable String accountId,
+            @RequestParam(name = "search") String search) {
+        return ResponseEntity.ok(adminApiService.listDirectoryGroups(accountId, search));
     }
 
     @PutMapping("/directory/oauth")
@@ -78,11 +82,10 @@ public class DirectoryController {
     }
 
     @PostMapping("/directory/oauth/token")
-    public ResponseEntity<Map<String, String>> exchangeDirectoryOAuthToken(
+    public ResponseEntity<DirectoryOAuthConnectResponse> exchangeDirectoryOAuthToken(
             @PathVariable String accountId,
             @Valid @RequestBody DirectoryOAuthTokenRequest request) {
-        adminApiService.exchangeDirectoryOAuthToken(accountId, request);
-        return ResponseEntity.ok(Map.of("status", "OK"));
+        return ResponseEntity.ok(adminApiService.exchangeDirectoryOAuthToken(accountId, request));
     }
 
     @DeleteMapping("/directory/oauth")
