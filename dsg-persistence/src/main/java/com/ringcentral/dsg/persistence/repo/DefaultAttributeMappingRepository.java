@@ -19,7 +19,7 @@ public class DefaultAttributeMappingRepository {
                 """
                         SELECT da.attribute_path,
                                da.attribute_name,
-                               ra.attribute_name,
+                               ra.attribute_name AS rc_attribute_name,
                                dam.display_sequence
                         FROM default_attribute_mapping dam
                         JOIN directory_attribute da ON da.id = dam.directory_attribute_id
