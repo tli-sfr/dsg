@@ -17,7 +17,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 @Testcontainers
 class FlywayMigrationIT {
 
-    private static final int EXPECTED_TABLE_COUNT = 30;
+    private static final int EXPECTED_TABLE_COUNT = 31;
 
     @Container
     @SuppressWarnings("resource")
@@ -44,7 +44,11 @@ class FlywayMigrationIT {
                             + "AND table_name <> 'flyway_schema_history'");
             tables.next();
             assertEquals(EXPECTED_TABLE_COUNT, tables.getInt(1),
-                    "DSB should have 30 tables (29 wiki + account_directory_oauth)");
+                    "DSB should have 31 tables (wiki + account_directory_oauth + default_attribute_mapping)");
+
+            ResultSet defaults = stmt.executeQuery("SELECT COUNT(*) FROM default_attribute_mapping");
+            defaults.next();
+            assertEquals(30, defaults.getInt(1));
 
             ResultSet dirs = stmt.executeQuery("SELECT COUNT(*) FROM directory_type");
             dirs.next();
