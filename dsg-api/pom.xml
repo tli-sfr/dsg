@@ -11,7 +11,8 @@
   </parent>
 
   <artifactId>dsg-api</artifactId>
-  <name>DSG Admin API</name>
+  <name>DSG Backend</name>
+  <description>Single Spring Boot deployable: Admin API + runtime workers (threads)</description>
 
   <dependencies>
     <dependency>
@@ -38,6 +39,11 @@
     <dependency>
       <groupId>com.ringcentral.dsg</groupId>
       <artifactId>dsg-messaging</artifactId>
+      <version>${project.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>com.ringcentral.dsg</groupId>
+      <artifactId>dsg-worker</artifactId>
       <version>${project.version}</version>
     </dependency>
     <dependency>

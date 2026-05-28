@@ -1,21 +1,19 @@
-package com.ringcentral.dsg.worker.service;
+package com.ringcentral.dsg.api.runtime;
 
+import com.ringcentral.dsg.api.support.AbstractApiIntegrationTest;
 import com.ringcentral.dsg.messaging.JobDetailMessage;
 import com.ringcentral.dsg.messaging.JobMessage;
 import com.ringcentral.dsg.messaging.MessageQueuePort;
 import com.ringcentral.dsg.persistence.repo.AccountDirectoryAuthRepository;
 import com.ringcentral.dsg.persistence.repo.JobRepository;
+import com.ringcentral.dsg.worker.service.JobRetrievalService;
+import com.ringcentral.dsg.worker.service.SyncWorkerService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.jdbc.core.JdbcTemplate;
-import org.springframework.test.context.DynamicPropertyRegistry;
-import org.springframework.test.context.DynamicPropertySource;
-import org.testcontainers.containers.MySQLContainer;
-import org.testcontainers.junit.jupiter.Container;
-import org.testcontainers.junit.jupiter.Testcontainers;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.any;
@@ -23,22 +21,7 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
 @SpringBootTest(properties = "dsg.messaging.listener.enabled=false")
-@Testcontainers
-class JobPipelineIT {
-
-    @Container
-    @SuppressWarnings("resource")
-    static final MySQLContainer<?> MYSQL = new MySQLContainer<>("mysql:8.0")
-            .withDatabaseName("dsb")
-            .withUsername("dsg")
-            .withPassword("dsg_dev");
-
-    @DynamicPropertySource
-    static void registerDataSource(DynamicPropertyRegistry registry) {
-        registry.add("spring.datasource.url", MYSQL::getJdbcUrl);
-        registry.add("spring.datasource.username", MYSQL::getUsername);
-        registry.add("spring.datasource.password", MYSQL::getPassword);
-    }
+class JobPipelineIT extends AbstractApiIntegrationTest {
 
     @Autowired
     private JobRepository jobRepository;
@@ -65,7 +48,7 @@ class JobPipelineIT {
     }
 
     @Test
-    void runsRetrievalSyncAndConsolidation() {
+    void runsRetrievalSyncAndConsolidationInSingleBackendContext() {
         long jobId = jobRepository.createJob("acct-worker", 1, 2, 1);
         JobMessage jobMessage = new JobMessage(Long.toString(jobId), "acct-worker", "FULL");
 

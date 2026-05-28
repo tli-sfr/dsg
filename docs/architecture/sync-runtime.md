@@ -8,8 +8,8 @@ Configuration plane vs sync execution for DSG. Complements [overview.md](overvie
 
 | Plane | Module | Responsibility |
 |-------|--------|----------------|
-| **Configuration** | `dsg-api` | Persist directory connection, mappings, rules, scheduler; serve admin UI |
-| **Runtime** | `dsg-worker` + publishers | Execute FULL / INCREMENTAL / ON_DEMAND jobs; call IDP + RC |
+| **Configuration** | `dsg-api` (REST) | Persist directory connection, mappings, rules, scheduler; serve admin UI |
+| **Runtime** | `dsg-worker` library + `@Scheduled` consumers in **same JVM** as `dsg-api` | Execute FULL / INCREMENTAL / ON_DEMAND jobs; call IDP + RC |
 
 Configuration APIs do not provision users. Runtime does not mutate rule definitions.
 
@@ -53,7 +53,7 @@ sequenceDiagram
   C->>DSB: job COMPLETED when all terminal
 ```
 
-Logical components map to Spring `@Scheduled` tasks and SQS listeners — not necessarily one OS thread each.
+**Deployment (Phase 1 POC):** one Spring Boot process (`dsg-api` main) hosts the Admin API and all runtime consumers. Logical components map to Spring `@Scheduled` tasks on the shared scheduler thread pool — not separate OS processes.
 
 ### Job states
 
