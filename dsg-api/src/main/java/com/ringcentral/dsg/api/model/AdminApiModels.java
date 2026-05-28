@@ -42,10 +42,33 @@ public final class AdminApiModels {
             @NotNull DirectoryType directoryType,
             @NotBlank String authFlow,
             @NotBlank String clientId,
-            @NotBlank String clientSecret) {
+            @NotBlank String clientSecret,
+            String azureTenantId,
+            String oktaDomain,
+            String scopes) {
     }
 
     public record DirectoryOAuthResponse(String directoryType, String clientId, Instant tokenExpiresAt) {
+    }
+
+    public record DirectoryOAuthConfigResponse(
+            String directoryType,
+            String authFlow,
+            String clientId,
+            String azureTenantId,
+            String oktaDomain,
+            String callbackUrl,
+            boolean connected,
+            Instant tokenExpiresAt) {
+    }
+
+    public record DirectoryOAuthTokenRequest(@NotBlank String code, @NotBlank String state) {
+    }
+
+    public record DirectoryGroupItem(String id, String name) {
+    }
+
+    public record DirectoryGroupsResponse(List<DirectoryGroupItem> groups) {
     }
 
     public record RcOAuthTokenRequest(@NotBlank String code, @NotBlank String state) {

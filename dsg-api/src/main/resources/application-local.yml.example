@@ -7,6 +7,6 @@ dsg:
     client-id: <your-rc-client-id>
     client-secret: <your-rc-client-secret>
     server-url: https://platform.devtest.ringcentral.com
-    redirect-uri: http://localhost:5173/oauth/callback
-    # Production-style local dev (Caddy + dirsync.ringcentral.com):
-    # redirect-uri: https://dirsync.ringcentral.com/mobile/oauthredirect
+    redirect-uri: https://dirsync.ringcentral.com/mobile/oauthredirect
+  app:
+    public-base-url: https://dirsync.ringcentral.com

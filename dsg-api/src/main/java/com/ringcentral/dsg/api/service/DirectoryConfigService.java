@@ -1,9 +1,12 @@
 package com.ringcentral.dsg.api.service;
 
-import com.ringcentral.dsg.api.crypto.SecretEncryptionService;
+import com.ringcentral.dsg.api.directory.DirectoryIdpOAuthService;
 import com.ringcentral.dsg.api.model.AdminApiModels.DirectoryConfigRequest;
+import com.ringcentral.dsg.api.model.AdminApiModels.DirectoryOAuthConfigResponse;
 import com.ringcentral.dsg.api.model.AdminApiModels.DirectoryOAuthRequest;
 import com.ringcentral.dsg.api.model.AdminApiModels.DirectoryOAuthResponse;
+import com.ringcentral.dsg.api.model.AdminApiModels.DirectoryOAuthTokenRequest;
+import com.ringcentral.dsg.api.model.AdminApiModels.DirectoryGroupsResponse;
 import com.ringcentral.dsg.api.model.AdminApiModels.DirectoryResponse;
 import com.ringcentral.dsg.api.model.AdminApiModels.DirectoryUpdateRequest;
 import com.ringcentral.dsg.persistence.repo.AccountDirectoryAuthRepository;
@@ -19,17 +22,17 @@ public class DirectoryConfigService {
     private final DirectoryTypeRepository directoryTypeRepository;
     private final AccountDirectoryAuthRepository authRepository;
     private final AccountDirectoryOauthRepository oauthRepository;
-    private final SecretEncryptionService encryptionService;
+    private final DirectoryIdpOAuthService directoryIdpOAuthService;
 
     public DirectoryConfigService(
             DirectoryTypeRepository directoryTypeRepository,
             AccountDirectoryAuthRepository authRepository,
             AccountDirectoryOauthRepository oauthRepository,
-            SecretEncryptionService encryptionService) {
+            DirectoryIdpOAuthService directoryIdpOAuthService) {
         this.directoryTypeRepository = directoryTypeRepository;
         this.authRepository = authRepository;
         this.oauthRepository = oauthRepository;
-        this.encryptionService = encryptionService;
+        this.directoryIdpOAuthService = directoryIdpOAuthService;
     }
 
     public void createDirectory(String accountId, DirectoryConfigRequest request) {
@@ -47,23 +50,12 @@ public class DirectoryConfigService {
                         record.directoryTypeName(),
                         record.directoryGroupId(),
                         record.active(),
-                        record.oauthConfigId() != null || oauthRepository.hasCredentials(accountId)))
+                        oauthRepository.hasRefreshToken(accountId)))
                 .orElse(new DirectoryResponse("Unknown", null, false, false));
     }
 
     public void putOAuth(String accountId, DirectoryOAuthRequest request) {
-        int directoryTypeId = resolveDirectoryTypeId(request.directoryType().name());
-        String encryptedSecret = encryptionService.encrypt(request.clientSecret());
-        long oauthId = oauthRepository.upsert(
-                accountId,
-                directoryTypeId,
-                request.authFlow(),
-                request.clientId(),
-                encryptedSecret);
-        if (authRepository.findByAccountId(accountId).isEmpty()) {
-            authRepository.upsert(accountId, directoryTypeId, null);
-        }
-        authRepository.linkOAuthConfig(accountId, oauthId);
+        directoryIdpOAuthService.saveCredentials(accountId, request);
     }
 
     public DirectoryOAuthResponse getOAuth(String accountId) {
@@ -78,7 +70,27 @@ public class DirectoryConfigService {
     }
 
     public boolean testOAuth(String accountId) {
-        return oauthRepository.hasCredentials(accountId);
+        return directoryIdpOAuthService.isConnected(accountId);
+    }
+
+    public DirectoryOAuthConfigResponse getOAuthConfig(String accountId) {
+        return directoryIdpOAuthService.getConfig(accountId);
+    }
+
+    public java.util.Map<String, String> getDirectoryAuthorizeUrl(String accountId) {
+        return directoryIdpOAuthService.buildAuthorizeUrl(accountId);
+    }
+
+    public void exchangeDirectoryOAuthToken(String accountId, DirectoryOAuthTokenRequest request) {
+        directoryIdpOAuthService.exchangeAuthorizationCode(accountId, request);
+    }
+
+    public void disconnectDirectoryOAuth(String accountId) {
+        directoryIdpOAuthService.disconnect(accountId);
+    }
+
+    public DirectoryGroupsResponse listDirectoryGroups(String accountId) {
+        return new DirectoryGroupsResponse(directoryIdpOAuthService.listGroups(accountId));
     }
 
     private int resolveDirectoryTypeId(String directoryTypeName) {

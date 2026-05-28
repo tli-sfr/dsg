@@ -12,6 +12,8 @@ spring:
 dsg:
   crypto:
     secret-key: local-dev-only-change-me
+  app:
+    public-base-url: ${DSG_APP_PUBLIC_BASE_URL:http://localhost:5173}
   rc:
     server-url: ${DSG_RC_SERVER_URL:https://platform.devtest.ringcentral.com}
     client-id: ${DSG_RC_CLIENT_ID:}

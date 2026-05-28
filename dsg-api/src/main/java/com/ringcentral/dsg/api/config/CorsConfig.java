@@ -21,7 +21,7 @@ public class CorsConfig {
                                 "http://dsg.local:*",
                                 "https://dirsync.ringcentral.com",
                                 "https://dirsync.ringcentral.com:*")
-                        .allowedMethods("GET", "POST", "PUT", "OPTIONS")
+                        .allowedMethods("GET", "POST", "PUT", "DELETE", "OPTIONS")
                         .allowedHeaders("*");
             }
         };

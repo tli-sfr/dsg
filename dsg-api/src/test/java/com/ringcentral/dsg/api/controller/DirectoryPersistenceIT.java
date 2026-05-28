@@ -72,10 +72,15 @@ class DirectoryPersistenceIT extends AbstractApiIntegrationTest {
         mockMvc.perform(get("/dsg/v1/acct-db/directory"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.directoryType").value("Okta"))
-                .andExpect(jsonPath("$.connected").value(true));
+                .andExpect(jsonPath("$.connected").value(false));
+
+        mockMvc.perform(get("/dsg/v1/acct-db/directory/oauth/config"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.callbackUrl").exists())
+                .andExpect(jsonPath("$.connected").value(false));
 
         mockMvc.perform(post("/dsg/v1/acct-db/directory/oauth/test"))
-                .andExpect(status().isOk());
+                .andExpect(status().isBadRequest());
 
         String responseBody = mockMvc.perform(get("/dsg/v1/acct-db/directory/oauth"))
                 .andExpect(status().isOk())

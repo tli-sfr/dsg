@@ -9,6 +9,17 @@ export interface DirectoryResponse {
   connected: boolean;
 }
 
+export interface DirectoryOAuthConfig {
+  directoryType: string | null;
+  authFlow: string | null;
+  clientId: string | null;
+  azureTenantId: string | null;
+  oktaDomain: string | null;
+  callbackUrl: string;
+  connected: boolean;
+  tokenExpiresAt: string | null;
+}
+
 export interface JobReportResponse {
   jobId: string;
   jobType: string;

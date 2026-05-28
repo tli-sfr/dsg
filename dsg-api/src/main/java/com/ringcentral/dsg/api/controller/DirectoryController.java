@@ -1,8 +1,11 @@
 package com.ringcentral.dsg.api.controller;
 
 import com.ringcentral.dsg.api.model.AdminApiModels.DirectoryConfigRequest;
+import com.ringcentral.dsg.api.model.AdminApiModels.DirectoryGroupsResponse;
+import com.ringcentral.dsg.api.model.AdminApiModels.DirectoryOAuthConfigResponse;
 import com.ringcentral.dsg.api.model.AdminApiModels.DirectoryOAuthRequest;
 import com.ringcentral.dsg.api.model.AdminApiModels.DirectoryOAuthResponse;
+import com.ringcentral.dsg.api.model.AdminApiModels.DirectoryOAuthTokenRequest;
 import com.ringcentral.dsg.api.model.AdminApiModels.DirectoryResponse;
 import com.ringcentral.dsg.api.model.AdminApiModels.DirectoryUpdateRequest;
 import com.ringcentral.dsg.api.model.AdminApiModels.ErrorResponse;
@@ -10,6 +13,7 @@ import com.ringcentral.dsg.api.service.AdminApiService;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -47,6 +51,11 @@ public class DirectoryController {
         return ResponseEntity.ok(adminApiService.getDirectory(accountId));
     }
 
+    @GetMapping("/directory/groups")
+    public ResponseEntity<DirectoryGroupsResponse> listDirectoryGroups(@PathVariable String accountId) {
+        return ResponseEntity.ok(adminApiService.listDirectoryGroups(accountId));
+    }
+
     @PutMapping("/directory/oauth")
     public ResponseEntity<Void> putDirectoryOAuth(@PathVariable String accountId, @Valid @RequestBody DirectoryOAuthRequest request) {
         adminApiService.putOAuth(accountId, request);
@@ -56,6 +65,30 @@ public class DirectoryController {
     @GetMapping("/directory/oauth")
     public ResponseEntity<DirectoryOAuthResponse> getDirectoryOAuth(@PathVariable String accountId) {
         return ResponseEntity.ok(adminApiService.getOAuth(accountId));
+    }
+
+    @GetMapping("/directory/oauth/config")
+    public ResponseEntity<DirectoryOAuthConfigResponse> getDirectoryOAuthConfig(@PathVariable String accountId) {
+        return ResponseEntity.ok(adminApiService.getOAuthConfig(accountId));
+    }
+
+    @GetMapping("/directory/oauth/authorize-url")
+    public ResponseEntity<Map<String, String>> getDirectoryAuthorizeUrl(@PathVariable String accountId) {
+        return ResponseEntity.ok(adminApiService.getDirectoryAuthorizeUrl(accountId));
+    }
+
+    @PostMapping("/directory/oauth/token")
+    public ResponseEntity<Map<String, String>> exchangeDirectoryOAuthToken(
+            @PathVariable String accountId,
+            @Valid @RequestBody DirectoryOAuthTokenRequest request) {
+        adminApiService.exchangeDirectoryOAuthToken(accountId, request);
+        return ResponseEntity.ok(Map.of("status", "OK"));
+    }
+
+    @DeleteMapping("/directory/oauth")
+    public ResponseEntity<Void> disconnectDirectoryOAuth(@PathVariable String accountId) {
+        adminApiService.disconnectDirectoryOAuth(accountId);
+        return ResponseEntity.noContent().build();
     }
 
     @PostMapping("/directory/oauth/test")

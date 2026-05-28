@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useLocation } from 'react-router-dom';
 import { api } from '../api/client';
+import { isDirectoryOAuthCallbackPath } from '../lib/directoryOAuthPaths';
 import { isRcOAuthCallbackPath } from '../lib/rcOAuthPaths';
 import { useAccountId } from './AccountBar';
 
@@ -16,7 +17,9 @@ export function RcAuthGuard({ children }: { children: React.ReactNode }) {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const onOAuthCallback =
-    isRcOAuthCallbackPath(location.pathname) || location.search.includes('code=');
+    isRcOAuthCallbackPath(location.pathname)
+    || isDirectoryOAuthCallbackPath(location.pathname)
+    || location.search.includes('code=');
 
   useEffect(() => {
     if (onOAuthCallback) {
