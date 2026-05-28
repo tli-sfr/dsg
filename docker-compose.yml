@@ -11,7 +11,7 @@ services:
       MYSQL_USER: dsg
       MYSQL_PASSWORD: dsg_dev
     ports:
-      - "3306:3306"
+      - "3307:3306"
     volumes:
       - dsg_mysql_data:/var/lib/mysql
     healthcheck:

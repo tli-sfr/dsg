@@ -10,16 +10,27 @@ Planning and documentation for Directory Integration 2.0 / Directory Sync Servic
 - [Implementation gate](docs/planning/implementation-gate.md)
 - [Jira epics](docs/planning/jira-epics.md)
 
-**Local run:** `docker compose up -d` (ElasticMQ + MySQL)
-
-**Build (SPIKE-4 messaging POC):**
+**Local run (single backend process):**
 
 ```bash
 # One-time if Maven fails with PKIX / Zscaler:
 ./scripts/setup-java-truststore.sh
 
-docker compose up -d elasticmq
-mvn verify   # or: mvn -pl dsg-domain,dsg-messaging -am verify
+# Start MySQL (host port 3307) + ElasticMQ, build, run API + workers:
+./scripts/dev-up.sh
+
+# Or manually:
+docker compose up -d
+mvn install -pl dsg-api -am -DskipTests
+mvn -pl dsg-api spring-boot:run
+```
+
+API base: `http://localhost:8080/dsg/v1/{accountId}/...`
+
+**Build / test:**
+
+```bash
+mvn verify
 ```
 
 Maven TLS help: [docs/development/maven-tls-setup.md](docs/development/maven-tls-setup.md)

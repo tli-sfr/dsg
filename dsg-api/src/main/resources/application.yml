@@ -2,7 +2,7 @@ spring:
   application:
     name: dsg-backend
   datasource:
-    url: jdbc:mysql://localhost:3306/dsb
+    url: jdbc:mysql://localhost:3307/dsb
     username: dsg
     password: dsg_dev
   flyway:
