@@ -144,6 +144,49 @@ paths:
         '200':
           description: Saved
 
+  /{accountId}/rules:
+    parameters:
+      - $ref: '#/components/parameters/accountId'
+    get:
+      tags: [rules]
+      summary: List provisioning rules
+      operationId: listProvisioningRules
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProvisioningRuleListResponse'
+
+  /{accountId}/deprovisioning:
+    parameters:
+      - $ref: '#/components/parameters/accountId'
+    get:
+      tags: [rules]
+      summary: Get deprovision policy
+      operationId: getDeprovisioning
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DeprovisioningResponse'
+    put:
+      tags: [rules]
+      summary: Set deprovision policy
+      operationId: saveDeprovisioning
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DeprovisioningRequest'
+      responses:
+        '200':
+          description: Saved
+
   /{accountId}/rule:
     parameters:
       - $ref: '#/components/parameters/accountId'
@@ -507,3 +550,38 @@ components:
           type: integer
         failedCount:
           type: integer
+
+    ProvisioningRuleListResponse:
+      type: object
+      properties:
+        rules:
+          type: array
+          items:
+            $ref: '#/components/schemas/ProvisioningRuleSummary'
+
+    ProvisioningRuleSummary:
+      type: object
+      properties:
+        ruleId:
+          type: string
+        ruleName:
+          type: string
+        priority:
+          type: integer
+        selectionExpression:
+          type: object
+          additionalProperties: true
+
+    DeprovisioningRequest:
+      type: object
+      required: [deprovisioningType]
+      properties:
+        deprovisioningType:
+          type: string
+          enum: [FULL_DELETE, RECLAIM_RESOURCE, DISABLE_ONLY]
+
+    DeprovisioningResponse:
+      type: object
+      properties:
+        deprovisioningType:
+          type: string

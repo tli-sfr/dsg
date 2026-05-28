@@ -62,6 +62,22 @@ public final class AdminApiModels {
             @NotNull List<@Valid AttributeMappingRow> customMappings) {
     }
 
+    public record ProvisioningRuleSummary(
+            String ruleId,
+            String ruleName,
+            int priority,
+            Map<String, Object> selectionExpression) {
+    }
+
+    public record ProvisioningRuleListResponse(List<ProvisioningRuleSummary> rules) {
+    }
+
+    public record DeprovisioningRequest(@NotBlank String deprovisioningType) {
+    }
+
+    public record DeprovisioningResponse(String deprovisioningType) {
+    }
+
     public record ProvisioningRuleRequest(
             @NotBlank String ruleName,
             @NotNull @Min(1) @Max(1000) Integer priority,
