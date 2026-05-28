@@ -84,6 +84,8 @@ class JobPersistenceIT extends AbstractApiIntegrationTest {
         mockMvc.perform(get("/dsg/v1/" + ACCOUNT + "/jobs/" + jobId + "/report"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.jobId").value(jobId))
+                .andExpect(jsonPath("$.jobType").value("INCREMENTAL"))
+                .andExpect(jsonPath("$.state").value("PENDING"))
                 .andExpect(jsonPath("$.successCount").value(0))
                 .andExpect(jsonPath("$.failedCount").value(0));
     }

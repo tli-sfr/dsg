@@ -2,6 +2,7 @@ package com.ringcentral.dsg.api.controller;
 
 import com.ringcentral.dsg.api.model.AdminApiModels.CreateJobRequest;
 import com.ringcentral.dsg.api.model.AdminApiModels.ErrorResponse;
+import com.ringcentral.dsg.api.model.AdminApiModels.JobHistoryResponse;
 import com.ringcentral.dsg.api.model.AdminApiModels.JobReportResponse;
 import com.ringcentral.dsg.api.model.AdminApiModels.JobResponse;
 import com.ringcentral.dsg.api.service.AdminApiService;
@@ -13,6 +14,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
@@ -33,8 +35,24 @@ public class JobController {
                         .body(new ErrorResponse("JOB_ALREADY_RUNNING", "Another job is already running for this account")));
     }
 
-    @GetMapping("/jobs/{jobId}/report")
-    public ResponseEntity<JobReportResponse> getJobReport(@PathVariable String accountId, @PathVariable String jobId) {
-        return ResponseEntity.ok(adminApiService.getJobReport(jobId));
+    @GetMapping("/jobs")
+    public ResponseEntity<JobHistoryResponse> listJobs(
+            @PathVariable String accountId, @RequestParam(required = false) Integer limit) {
+        return ResponseEntity.ok(adminApiService.listJobs(accountId, limit));
+    }
+
+    @GetMapping("/jobs/latest/report")
+    public ResponseEntity<JobReportResponse> getLatestJobReport(@PathVariable String accountId) {
+        return adminApiService.getLatestJobReport(accountId)
+                .map(ResponseEntity::ok)
+                .orElse(ResponseEntity.notFound().build());
+    }
+
+    @GetMapping("/jobs/{jobId:\\d+}/report")
+    public ResponseEntity<JobReportResponse> getJobReport(
+            @PathVariable String accountId, @PathVariable String jobId) {
+        return adminApiService.getJobReport(accountId, jobId)
+                .map(ResponseEntity::ok)
+                .orElse(ResponseEntity.notFound().build());
     }
 }

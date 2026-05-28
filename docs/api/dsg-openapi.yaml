@@ -166,6 +166,24 @@ paths:
   /{accountId}/jobs:
     parameters:
       - $ref: '#/components/parameters/accountId'
+    get:
+      tags: [jobs]
+      summary: List sync job history for account (Service Web)
+      operationId: listJobs
+      parameters:
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+            maximum: 100
+      responses:
+        '200':
+          description: Job history
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/JobHistoryResponse'
     post:
       tags: [jobs]
       summary: Trigger sync job (full, incremental, on-demand)
@@ -190,6 +208,23 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
 
+  /{accountId}/jobs/latest/report:
+    parameters:
+      - $ref: '#/components/parameters/accountId'
+    get:
+      tags: [jobs]
+      summary: Get report for the most recent job (sync status cards)
+      operationId: getLatestJobReport
+      responses:
+        '200':
+          description: Report
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/JobReportResponse'
+        '404':
+          description: No jobs for account
+
   /{accountId}/jobs/{jobId}/report:
     parameters:
       - $ref: '#/components/parameters/accountId'
@@ -209,6 +244,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/JobReportResponse'
+        '404':
+          description: Job not found for account
 
 components:
   parameters:
@@ -406,6 +443,21 @@ components:
       properties:
         jobId:
           type: string
+        jobType:
+          type: string
+          enum: [FULL, INCREMENTAL, ON_DEMAND]
+        syncDirection:
+          type: string
+          enum: [DIR_TO_RC, RC_TO_DIR]
+        state:
+          type: string
+        startedAt:
+          type: string
+          format: date-time
+        completedAt:
+          type: string
+          format: date-time
+          nullable: true
         successCount:
           type: integer
         failedCount:
@@ -413,9 +465,45 @@ components:
         failures:
           type: array
           items:
-            type: object
-            properties:
-              externalId:
-                type: string
-              comment:
-                type: string
+            $ref: '#/components/schemas/JobFailure'
+
+    JobFailure:
+      type: object
+      properties:
+        externalId:
+          type: string
+        operation:
+          type: string
+        comment:
+          type: string
+
+    JobHistoryResponse:
+      type: object
+      properties:
+        jobs:
+          type: array
+          items:
+            $ref: '#/components/schemas/JobSummaryResponse'
+
+    JobSummaryResponse:
+      type: object
+      properties:
+        jobId:
+          type: string
+        jobType:
+          type: string
+        syncDirection:
+          type: string
+        state:
+          type: string
+        startedAt:
+          type: string
+          format: date-time
+        completedAt:
+          type: string
+          format: date-time
+          nullable: true
+        successCount:
+          type: integer
+        failedCount:
+          type: integer

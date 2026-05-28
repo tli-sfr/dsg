@@ -1,20 +1,13 @@
 package com.ringcentral.dsg.persistence.model;
 
 import java.time.Instant;
-import java.util.List;
 
-public record JobReportData(
+public record JobSummaryData(
         long jobId,
-        String accountId,
         String jobType,
         String syncDirection,
         String state,
         Instant startedAt,
         Instant completedAt,
         int successCount,
-        int failedCount,
-        List<JobFailureRow> failures) {
-
-    public record JobFailureRow(String externalId, String operation, String comment) {
-    }
-}
+        int failedCount) {}

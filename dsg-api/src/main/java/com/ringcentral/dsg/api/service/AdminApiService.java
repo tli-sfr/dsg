@@ -7,6 +7,7 @@ import com.ringcentral.dsg.api.model.AdminApiModels.DirectoryOAuthRequest;
 import com.ringcentral.dsg.api.model.AdminApiModels.DirectoryOAuthResponse;
 import com.ringcentral.dsg.api.model.AdminApiModels.DirectoryResponse;
 import com.ringcentral.dsg.api.model.AdminApiModels.DirectoryUpdateRequest;
+import com.ringcentral.dsg.api.model.AdminApiModels.JobHistoryResponse;
 import com.ringcentral.dsg.api.model.AdminApiModels.JobReportResponse;
 import com.ringcentral.dsg.api.model.AdminApiModels.JobResponse;
 import com.ringcentral.dsg.api.model.AdminApiModels.ProvisioningRuleRequest;
@@ -71,7 +72,15 @@ public class AdminApiService {
         return jobManagerService.createJob(accountId, request);
     }
 
-    public JobReportResponse getJobReport(String jobId) {
-        return jobManagerService.getJobReport(jobId);
+    public Optional<JobReportResponse> getJobReport(String accountId, String jobId) {
+        return jobManagerService.getJobReport(accountId, jobId);
+    }
+
+    public Optional<JobReportResponse> getLatestJobReport(String accountId) {
+        return jobManagerService.getLatestJobReport(accountId);
+    }
+
+    public JobHistoryResponse listJobs(String accountId, Integer limit) {
+        return jobManagerService.listJobs(accountId, limit);
     }
 }

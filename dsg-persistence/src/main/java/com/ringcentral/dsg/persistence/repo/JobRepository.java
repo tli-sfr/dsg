@@ -3,6 +3,9 @@ package com.ringcentral.dsg.persistence.repo;
 import com.ringcentral.dsg.persistence.model.JobContext;
 import com.ringcentral.dsg.persistence.model.JobReportData;
 import com.ringcentral.dsg.persistence.model.JobReportData.JobFailureRow;
+import com.ringcentral.dsg.persistence.model.JobSummaryData;
+import java.sql.Timestamp;
+import java.time.Instant;
 import org.springframework.dao.EmptyResultDataAccessException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.support.GeneratedKeyHolder;
@@ -119,44 +122,152 @@ public class JobRepository {
         }
     }
 
-    public Optional<JobReportData> findJobReport(long jobId) {
-        try {
-            jdbcTemplate.queryForObject("SELECT id FROM job WHERE id = ?", Long.class, jobId);
-        } catch (EmptyResultDataAccessException ex) {
+    public Optional<JobReportData> findJobReportForAccount(long jobId, String accountId) {
+        Optional<JobReportHeader> header = findJobReportHeader(jobId, accountId);
+        if (header.isEmpty()) {
             return Optional.empty();
         }
-
-        Integer successCount = jdbcTemplate.queryForObject(
-                """
-                        SELECT COUNT(*) FROM job_detail jd
-                        JOIN job_state s ON s.id = jd.state_id
-                        WHERE jd.job_id = ? AND s.state = 'SUCCEEDED'
-                        """,
-                Integer.class,
-                jobId);
-        Integer failedCount = jdbcTemplate.queryForObject(
-                """
-                        SELECT COUNT(*) FROM job_detail jd
-                        JOIN job_state s ON s.id = jd.state_id
-                        WHERE jd.job_id = ? AND s.state = 'FAILED'
-                        """,
-                Integer.class,
-                jobId);
+        JobReportHeader job = header.get();
 
         List<JobFailureRow> failures = jdbcTemplate.query(
                 """
-                        SELECT jd.external_id, jd.comment
+                        SELECT jd.external_id, ot.type AS operation, jd.comment
                         FROM job_detail jd
                         JOIN job_state s ON s.id = jd.state_id
+                        JOIN operation_type ot ON ot.id = jd.operation_id
                         WHERE jd.job_id = ? AND s.state = 'FAILED'
+                        ORDER BY jd.id
                         """,
-                (rs, rowNum) -> new JobFailureRow(rs.getString("external_id"), rs.getString("comment")),
+                (rs, rowNum) -> new JobFailureRow(
+                        rs.getString("external_id"),
+                        rs.getString("operation"),
+                        rs.getString("comment")),
                 jobId);
 
         return Optional.of(new JobReportData(
-                jobId,
-                successCount != null ? successCount : 0,
-                failedCount != null ? failedCount : 0,
+                job.jobId(),
+                job.accountId(),
+                job.jobType(),
+                job.syncDirection(),
+                job.state(),
+                job.startedAt(),
+                job.completedAt(),
+                job.successCount(),
+                job.failedCount(),
                 failures));
     }
+
+    public Optional<Long> findLatestJobIdForAccount(String accountId) {
+        try {
+            return Optional.ofNullable(jdbcTemplate.queryForObject(
+                    "SELECT id FROM job WHERE account_id = ? ORDER BY id DESC LIMIT 1",
+                    Long.class,
+                    accountId));
+        } catch (EmptyResultDataAccessException ex) {
+            return Optional.empty();
+        }
+    }
+
+    public List<JobSummaryData> listJobsForAccount(String accountId, int limit) {
+        return jdbcTemplate.query(
+                """
+                        SELECT j.id,
+                               t.type AS job_type,
+                               CASE j.direction_id
+                                   WHEN 1 THEN 'DIR_TO_RC'
+                                   WHEN 2 THEN 'RC_TO_DIR'
+                                   ELSE 'DIR_TO_RC'
+                               END AS sync_direction,
+                               s.state,
+                               j.created_on AS started_at,
+                               CASE
+                                   WHEN s.state IN ('COMPLETED', 'CANCELLED') THEN j.updated_on
+                                   ELSE NULL
+                               END AS completed_at,
+                               (SELECT COUNT(*) FROM job_detail jd
+                                JOIN job_state js ON js.id = jd.state_id
+                                WHERE jd.job_id = j.id AND js.state = 'SUCCEEDED') AS success_count,
+                               (SELECT COUNT(*) FROM job_detail jd
+                                JOIN job_state js ON js.id = jd.state_id
+                                WHERE jd.job_id = j.id AND js.state = 'FAILED') AS failed_count
+                        FROM job j
+                        JOIN job_type t ON t.id = j.type_id
+                        JOIN job_state s ON s.id = j.state_id
+                        WHERE j.account_id = ?
+                        ORDER BY j.id DESC
+                        LIMIT ?
+                        """,
+                (rs, rowNum) -> new JobSummaryData(
+                        rs.getLong("id"),
+                        rs.getString("job_type"),
+                        rs.getString("sync_direction"),
+                        rs.getString("state"),
+                        toInstant(rs.getTimestamp("started_at")),
+                        toInstant(rs.getTimestamp("completed_at")),
+                        rs.getInt("success_count"),
+                        rs.getInt("failed_count")),
+                accountId,
+                limit);
+    }
+
+    private Optional<JobReportHeader> findJobReportHeader(long jobId, String accountId) {
+        try {
+            return Optional.of(jdbcTemplate.queryForObject(
+                    """
+                            SELECT j.id,
+                                   j.account_id,
+                                   t.type AS job_type,
+                                   CASE j.direction_id
+                                       WHEN 1 THEN 'DIR_TO_RC'
+                                       WHEN 2 THEN 'RC_TO_DIR'
+                                       ELSE 'DIR_TO_RC'
+                                   END AS sync_direction,
+                                   s.state,
+                                   j.created_on AS started_at,
+                                   CASE
+                                       WHEN s.state IN ('COMPLETED', 'CANCELLED') THEN j.updated_on
+                                       ELSE NULL
+                                   END AS completed_at,
+                                   (SELECT COUNT(*) FROM job_detail jd
+                                    JOIN job_state js ON js.id = jd.state_id
+                                    WHERE jd.job_id = j.id AND js.state = 'SUCCEEDED') AS success_count,
+                                   (SELECT COUNT(*) FROM job_detail jd
+                                    JOIN job_state js ON js.id = jd.state_id
+                                    WHERE jd.job_id = j.id AND js.state = 'FAILED') AS failed_count
+                            FROM job j
+                            JOIN job_type t ON t.id = j.type_id
+                            JOIN job_state s ON s.id = j.state_id
+                            WHERE j.id = ? AND j.account_id = ?
+                            """,
+                    (rs, rowNum) -> new JobReportHeader(
+                            rs.getLong("id"),
+                            rs.getString("account_id"),
+                            rs.getString("job_type"),
+                            rs.getString("sync_direction"),
+                            rs.getString("state"),
+                            toInstant(rs.getTimestamp("started_at")),
+                            toInstant(rs.getTimestamp("completed_at")),
+                            rs.getInt("success_count"),
+                            rs.getInt("failed_count")),
+                    jobId,
+                    accountId));
+        } catch (EmptyResultDataAccessException ex) {
+            return Optional.empty();
+        }
+    }
+
+    private static Instant toInstant(Timestamp timestamp) {
+        return timestamp != null ? timestamp.toInstant() : null;
+    }
+
+    private record JobReportHeader(
+            long jobId,
+            String accountId,
+            String jobType,
+            String syncDirection,
+            String state,
+            Instant startedAt,
+            Instant completedAt,
+            int successCount,
+            int failedCount) {}
 }

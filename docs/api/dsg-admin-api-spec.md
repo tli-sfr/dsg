@@ -33,7 +33,9 @@ Details: [directory-auth-api-spec.md](directory-auth-api-spec.md)
 | Method | Path | Purpose |
 |--------|------|---------|
 | POST | `/jobs` | Start FULL, INCREMENTAL, or ON_DEMAND sync |
-| GET | `/jobs/{jobId}/report` | Success/failure counts and failure list (P0-9 Phase 1) |
+| GET | `/jobs` | Sync job history (summary per job; `?limit=20`) |
+| GET | `/jobs/latest/report` | Report for most recent job (dashboard status cards) |
+| GET | `/jobs/{jobId}/report` | Full report: counts, failures with operation + comment (P0-9 Phase 1) |
 
 ### `POST /jobs` — request
 
