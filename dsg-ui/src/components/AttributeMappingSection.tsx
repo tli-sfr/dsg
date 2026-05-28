@@ -92,7 +92,6 @@ export function AttributeMappingSection({
 
   async function save() {
     setSaving(true);
-    onError('');
     try {
       const basicMappings: AttributeMappingRow[] = rows.map((r) => ({
         syncDirection: 'DIR_TO_RC',
