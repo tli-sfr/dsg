@@ -4,6 +4,7 @@ import com.ringcentral.dsg.api.model.AdminApiModels.AttributeMappingRequest;
 import com.ringcentral.dsg.api.model.AdminApiModels.ProvisioningRuleRequest;
 import com.ringcentral.dsg.api.model.AdminApiModels.SchedulerRequest;
 import com.ringcentral.dsg.api.service.AdminApiService;
+import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -23,19 +24,19 @@ public class ConfigurationController {
     }
 
     @PostMapping("/scheduler")
-    public ResponseEntity<Void> configureScheduler(@PathVariable String accountId, @RequestBody SchedulerRequest request) {
+    public ResponseEntity<Void> configureScheduler(@PathVariable String accountId, @Valid @RequestBody SchedulerRequest request) {
         adminApiService.configureScheduler(accountId, request);
         return ResponseEntity.ok().build();
     }
 
     @PostMapping("/attribute-mapping")
-    public ResponseEntity<Void> saveAttributeMapping(@PathVariable String accountId, @RequestBody AttributeMappingRequest request) {
+    public ResponseEntity<Void> saveAttributeMapping(@PathVariable String accountId, @Valid @RequestBody AttributeMappingRequest request) {
         adminApiService.saveAttributeMapping(accountId, request);
         return ResponseEntity.ok().build();
     }
 
     @PostMapping("/rule")
-    public ResponseEntity<Void> createProvisioningRule(@PathVariable String accountId, @RequestBody ProvisioningRuleRequest request) {
+    public ResponseEntity<Void> createProvisioningRule(@PathVariable String accountId, @Valid @RequestBody ProvisioningRuleRequest request) {
         adminApiService.saveRule(accountId, request);
         return ResponseEntity.status(HttpStatus.CREATED).build();
     }

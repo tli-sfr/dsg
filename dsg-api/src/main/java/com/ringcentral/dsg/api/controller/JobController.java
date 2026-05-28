@@ -5,6 +5,7 @@ import com.ringcentral.dsg.api.model.AdminApiModels.ErrorResponse;
 import com.ringcentral.dsg.api.model.AdminApiModels.JobReportResponse;
 import com.ringcentral.dsg.api.model.AdminApiModels.JobResponse;
 import com.ringcentral.dsg.api.service.AdminApiService;
+import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -25,7 +26,7 @@ public class JobController {
     }
 
     @PostMapping("/jobs")
-    public ResponseEntity<?> createJob(@PathVariable String accountId, @RequestBody CreateJobRequest request) {
+    public ResponseEntity<?> createJob(@PathVariable String accountId, @Valid @RequestBody CreateJobRequest request) {
         return adminApiService.createJob(accountId, request)
                 .<ResponseEntity<?>>map(job -> ResponseEntity.status(HttpStatus.ACCEPTED).body(job))
                 .orElseGet(() -> ResponseEntity.status(HttpStatus.CONFLICT)
