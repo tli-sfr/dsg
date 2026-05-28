@@ -7,5 +7,14 @@ if [ -z "$PIDS" ]; then
   exit 0
 fi
 echo "Stopping process(es) on port 8080: $PIDS"
-kill $PIDS
+kill $PIDS 2>/dev/null || true
+for _ in 1 2 3 4 5; do
+  if ! lsof -i :8080 -sTCP:LISTEN -t >/dev/null 2>&1; then
+    echo "Done."
+    exit 0
+  fi
+  sleep 1
+done
+echo "Port 8080 still in use; sending SIGKILL..."
+lsof -i :8080 -sTCP:LISTEN -t | xargs kill -9 2>/dev/null || true
 echo "Done."

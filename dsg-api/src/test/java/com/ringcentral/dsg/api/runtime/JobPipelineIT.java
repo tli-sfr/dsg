@@ -6,6 +6,7 @@ import com.ringcentral.dsg.messaging.JobMessage;
 import com.ringcentral.dsg.messaging.MessageQueuePort;
 import com.ringcentral.dsg.persistence.repo.AccountDirectoryAuthRepository;
 import com.ringcentral.dsg.persistence.repo.JobRepository;
+import com.ringcentral.dsg.persistence.repo.ProvisioningRuleRepository;
 import com.ringcentral.dsg.worker.service.JobRetrievalService;
 import com.ringcentral.dsg.worker.service.SyncWorkerService;
 import org.junit.jupiter.api.BeforeEach;
@@ -38,6 +39,9 @@ class JobPipelineIT extends AbstractApiIntegrationTest {
     @Autowired
     private JdbcTemplate jdbcTemplate;
 
+    @Autowired
+    private ProvisioningRuleRepository provisioningRuleRepository;
+
     @MockBean
     private MessageQueuePort messageQueuePort;
 
@@ -45,6 +49,7 @@ class JobPipelineIT extends AbstractApiIntegrationTest {
     void seedAccountAndJob() {
         authRepository.upsert("acct-worker", 2, null);
         authRepository.update("acct-worker", "sales-group", true);
+        provisioningRuleRepository.upsertRule("acct-worker", "All Users", 1, "{\"match\":\"ALL\"}");
     }
 
     @Test
