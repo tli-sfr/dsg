@@ -12,6 +12,14 @@ spring:
 dsg:
   crypto:
     secret-key: local-dev-only-change-me
+  messaging:
+    endpoint: http://localhost:9324
+    region: us-east-1
+    access-key-id: x
+    secret-access-key: x
+    job-queue-name: dsg-job-queue
+    job-detail-queue-name: dsg-job-detail-queue
+    wait-time-seconds: 1
 
 server:
   port: 8080
