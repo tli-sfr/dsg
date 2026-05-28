@@ -18,17 +18,22 @@ public class JobDetailRepository {
         this.jdbcTemplate = jdbcTemplate;
     }
 
-    public long insertPendingCreate(long jobId, String externalId) {
+    public long insertPendingCreate(long jobId, String externalId, Long ruleId) {
         GeneratedKeyHolder keyHolder = new GeneratedKeyHolder();
         jdbcTemplate.update(connection -> {
             PreparedStatement ps = connection.prepareStatement(
                     """
-                            INSERT INTO job_detail (job_id, external_id, state_id, operation_id)
-                            VALUES (?, ?, 1, 1)
+                            INSERT INTO job_detail (job_id, external_id, state_id, operation_id, rule_id)
+                            VALUES (?, ?, 1, 1, ?)
                             """,
                     Statement.RETURN_GENERATED_KEYS);
             ps.setLong(1, jobId);
             ps.setString(2, externalId);
+            if (ruleId != null) {
+                ps.setLong(3, ruleId);
+            } else {
+                ps.setNull(3, java.sql.Types.BIGINT);
+            }
             return ps;
         }, keyHolder);
         return keyHolder.getKey().longValue();

@@ -9,6 +9,12 @@ public class StubRcProvisioningPort implements RcProvisioningPort {
     @Override
     public ProvisioningResult createExtension(String accountId, DirectoryUser directoryUser) {
         String mailboxId = "mbx-" + directoryUser.externalId();
-        return new ProvisioningResult(mailboxId, true, "Stub extension created");
+        long ruleBasedCount = directoryUser.attributes().keySet().stream()
+                .filter(key -> key.startsWith("rc."))
+                .count();
+        String message = ruleBasedCount > 0
+                ? "Stub extension created with " + ruleBasedCount + " rule-based attribute(s)"
+                : "Stub extension created";
+        return new ProvisioningResult(mailboxId, true, message);
     }
 }

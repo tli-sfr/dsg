@@ -1,5 +1,7 @@
 package com.ringcentral.dsg.persistence.repo;
 
+import com.ringcentral.dsg.persistence.model.ProvisioningRuleRecord;
+import com.ringcentral.dsg.persistence.model.RuleBasedAttributeMappingRecord;
 import org.springframework.dao.EmptyResultDataAccessException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.support.GeneratedKeyHolder;
@@ -7,6 +9,7 @@ import org.springframework.stereotype.Repository;
 
 import java.sql.PreparedStatement;
 import java.sql.Statement;
+import java.util.List;
 import java.util.Optional;
 
 @Repository
@@ -100,6 +103,41 @@ public class ProvisioningRuleRepository {
 
     public int countLicenseAssignments(long ruleId) {
         return count("license_assignment", ruleId);
+    }
+
+    public List<ProvisioningRuleRecord> listByAccountOrderByPriority(String accountId) {
+        return jdbcTemplate.query(
+                """
+                        SELECT id, rule_name, priority, selection_expression
+                        FROM provisioning_assignment_rule
+                        WHERE account_id = ?
+                        ORDER BY priority ASC
+                        """,
+                (rs, rowNum) -> new ProvisioningRuleRecord(
+                        rs.getLong("id"),
+                        rs.getString("rule_name"),
+                        rs.getInt("priority"),
+                        rs.getString("selection_expression")),
+                accountId);
+    }
+
+    public List<RuleBasedAttributeMappingRecord> listRuleBasedMappings(long ruleId) {
+        return jdbcTemplate.query(
+                """
+                        SELECT m.directory_attribute_path,
+                               m.directory_attribute_value,
+                               a.attribute_name,
+                               m.rc_object_id
+                        FROM rule_based_attribute_mapping m
+                        JOIN rc_rule_based_attribute a ON a.id = m.rc_rule_based_attribute_id
+                        WHERE m.rule_id = ?
+                        """,
+                (rs, rowNum) -> new RuleBasedAttributeMappingRecord(
+                        rs.getString("directory_attribute_path"),
+                        rs.getString("directory_attribute_value"),
+                        rs.getString("attribute_name"),
+                        rs.getString("rc_object_id")),
+                ruleId);
     }
 
     private Optional<Long> findRuleIdByAccountAndPriority(String accountId, int priority) {

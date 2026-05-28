@@ -19,13 +19,19 @@ Planning and documentation for Directory Integration 2.0 / Directory Sync Servic
 # Start MySQL (host port 3307) + ElasticMQ, build, run API + workers:
 ./scripts/dev-up.sh
 
+# Re-run backend only (stops prior process on 8080, rebuilds, starts):
+./scripts/dev-run.sh
+
 # Or manually:
 docker compose up -d
 mvn install -pl dsg-api -am -DskipTests
+./scripts/dev-stop.sh   # if you see "Port 8080 was already in use"
 mvn -pl dsg-api spring-boot:run
 ```
 
 API base: `http://localhost:8080/dsg/v1/{accountId}/...`
+
+Stop backend: `./scripts/dev-stop.sh`
 
 **Build / test:**
 

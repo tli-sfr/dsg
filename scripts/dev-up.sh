@@ -16,10 +16,8 @@ for i in {1..30}; do
 done
 
 if lsof -i :8080 -sTCP:LISTEN -t >/dev/null 2>&1; then
-  echo "Port 8080 is already in use (DSG may already be running)."
-  echo "  Use it:  curl http://localhost:8080/dsg/v1/{accountId}/directory"
-  echo "  Stop it: ./scripts/dev-stop.sh"
-  exit 0
+  echo "Port 8080 in use — stopping previous DSG instance..."
+  "$ROOT/scripts/dev-stop.sh"
 fi
 
 echo "Building modules (skip tests)..."
