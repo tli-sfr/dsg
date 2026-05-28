@@ -24,14 +24,13 @@ import java.util.concurrent.ConcurrentHashMap;
 public class AdminApiService {
 
     private final DirectoryConfigService directoryConfigService;
-    private final Map<String, SchedulerRequest> schedulerByAccount = new ConcurrentHashMap<>();
-    private final Map<String, AttributeMappingRequest> mappingsByAccount = new ConcurrentHashMap<>();
-    private final Map<String, ProvisioningRuleRequest> ruleByAccount = new ConcurrentHashMap<>();
+    private final ConfigurationService configurationService;
     private final Map<String, JobRecord> activeJobByAccount = new ConcurrentHashMap<>();
     private final Map<String, JobReportResponse> reportByJobId = new ConcurrentHashMap<>();
 
-    public AdminApiService(DirectoryConfigService directoryConfigService) {
+    public AdminApiService(DirectoryConfigService directoryConfigService, ConfigurationService configurationService) {
         this.directoryConfigService = directoryConfigService;
+        this.configurationService = configurationService;
     }
 
     public void createDirectory(String accountId, DirectoryConfigRequest request) {
@@ -59,15 +58,15 @@ public class AdminApiService {
     }
 
     public void configureScheduler(String accountId, SchedulerRequest request) {
-        schedulerByAccount.put(accountId, request);
+        configurationService.configureScheduler(accountId, request);
     }
 
     public void saveAttributeMapping(String accountId, AttributeMappingRequest request) {
-        mappingsByAccount.put(accountId, request);
+        configurationService.saveAttributeMapping(accountId, request);
     }
 
     public void saveRule(String accountId, ProvisioningRuleRequest request) {
-        ruleByAccount.put(accountId, request);
+        configurationService.saveRule(accountId, request);
     }
 
     public Optional<JobResponse> createJob(String accountId, CreateJobRequest request) {
