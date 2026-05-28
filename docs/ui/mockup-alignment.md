@@ -23,7 +23,7 @@ Maps Google AI Studio mockups to routes, APIs, and schema. Source: HTML export +
 | + Create Rule | Navigate to rule form |
 | IDP Authorization | `PUT/GET /directory/oauth`, test |
 | Synchronization | `PUT /directory`, `POST /scheduler`, `POST /jobs` |
-| Identity Attribute Mapping | `POST /attribute-mapping` |
+| Attribute mappings (IDP ↔ RC) | `GET/POST /attribute-mapping`; defaults from `default_attribute_mapping` |
 | Rule based automation | `POST /rule`, list rules |
 | User deprovision policy | `deprovisioning_rule` API (extend admin spec) |
 

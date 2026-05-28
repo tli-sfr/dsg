@@ -130,6 +130,17 @@ paths:
   /{accountId}/attribute-mapping:
     parameters:
       - $ref: '#/components/parameters/accountId'
+    get:
+      tags: [mapping]
+      summary: Get account or default attribute mappings and catalog
+      operationId: getAttributeMapping
+      responses:
+        '200':
+          description: Mapping configuration
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AttributeMappingConfigResponse'
     post:
       tags: [mapping]
       summary: Save basic and custom attribute mappings
@@ -401,6 +412,48 @@ components:
         directoryAttribute:
           type: string
         rcAttribute:
+          type: string
+
+    AttributeMappingConfigResponse:
+      type: object
+      properties:
+        syncDirection:
+          type: string
+        accountConfigured:
+          type: boolean
+        mappings:
+          type: array
+          items:
+            $ref: '#/components/schemas/AttributeMappingItem'
+        directoryAttributes:
+          type: array
+          items:
+            $ref: '#/components/schemas/AttributeCatalogItem'
+        rcAttributes:
+          type: array
+          items:
+            $ref: '#/components/schemas/AttributeCatalogItem'
+
+    AttributeMappingItem:
+      type: object
+      properties:
+        directoryAttributePath:
+          type: string
+        directoryAttributeName:
+          type: string
+        rcAttribute:
+          type: string
+        displaySequence:
+          type: integer
+
+    AttributeCatalogItem:
+      type: object
+      properties:
+        attributeName:
+          type: string
+        attributePath:
+          type: string
+        displayName:
           type: string
 
     SelectionExpression:
