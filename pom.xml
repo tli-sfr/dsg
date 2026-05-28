@@ -17,6 +17,7 @@
     <module>dsg-messaging</module>
     <module>dsg-persistence</module>
     <module>dsg-api</module>
+    <module>dsg-worker</module>
   </modules>
 
   <properties>

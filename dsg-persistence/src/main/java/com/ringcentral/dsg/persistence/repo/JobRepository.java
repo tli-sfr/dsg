@@ -1,5 +1,6 @@
 package com.ringcentral.dsg.persistence.repo;
 
+import com.ringcentral.dsg.persistence.model.JobContext;
 import com.ringcentral.dsg.persistence.model.JobReportData;
 import com.ringcentral.dsg.persistence.model.JobReportData.JobFailureRow;
 import org.springframework.dao.EmptyResultDataAccessException;
@@ -53,6 +54,53 @@ public class JobRepository {
             return ps;
         }, keyHolder);
         return keyHolder.getKey().longValue();
+    }
+
+    public Optional<JobContext> findJobContext(long jobId) {
+        try {
+            return Optional.ofNullable(jdbcTemplate.queryForObject(
+                    """
+                            SELECT j.id, j.account_id, j.directory_type_id, t.type, s.state
+                            FROM job j
+                            JOIN job_type t ON t.id = j.type_id
+                            JOIN job_state s ON s.id = j.state_id
+                            WHERE j.id = ?
+                            """,
+                    (rs, rowNum) -> new JobContext(
+                            rs.getLong("id"),
+                            rs.getString("account_id"),
+                            rs.getInt("directory_type_id"),
+                            rs.getString("type"),
+                            rs.getString("state")),
+                    jobId));
+        } catch (EmptyResultDataAccessException ex) {
+            return Optional.empty();
+        }
+    }
+
+    public void updateJobState(long jobId, String stateName) {
+        jdbcTemplate.update(
+                """
+                        UPDATE job j
+                        JOIN job_state s ON s.state = ?
+                        SET j.state_id = s.id
+                        WHERE j.id = ?
+                        """,
+                stateName,
+                jobId);
+    }
+
+    public boolean hasNonTerminalJobDetails(long jobId) {
+        Integer count = jdbcTemplate.queryForObject(
+                """
+                        SELECT COUNT(*) FROM job_detail jd
+                        JOIN job_state s ON s.id = jd.state_id
+                        WHERE jd.job_id = ?
+                          AND s.state NOT IN ('SUCCEEDED', 'FAILED', 'COMPLETED', 'CANCELLED')
+                        """,
+                Integer.class,
+                jobId);
+        return count != null && count > 0;
     }
 
     public Optional<String> findJobStateName(long jobId) {
