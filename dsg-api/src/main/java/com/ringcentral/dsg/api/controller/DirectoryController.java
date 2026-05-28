@@ -7,6 +7,7 @@ import com.ringcentral.dsg.api.model.AdminApiModels.DirectoryResponse;
 import com.ringcentral.dsg.api.model.AdminApiModels.DirectoryUpdateRequest;
 import com.ringcentral.dsg.api.model.AdminApiModels.ErrorResponse;
 import com.ringcentral.dsg.api.service.AdminApiService;
+import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -30,7 +31,7 @@ public class DirectoryController {
     }
 
     @PostMapping("/directory")
-    public ResponseEntity<Void> createDirectory(@PathVariable String accountId, @RequestBody DirectoryConfigRequest request) {
+    public ResponseEntity<Void> createDirectory(@PathVariable String accountId, @Valid @RequestBody DirectoryConfigRequest request) {
         adminApiService.createDirectory(accountId, request);
         return ResponseEntity.status(HttpStatus.CREATED).build();
     }
@@ -47,7 +48,7 @@ public class DirectoryController {
     }
 
     @PutMapping("/directory/oauth")
-    public ResponseEntity<Void> putDirectoryOAuth(@PathVariable String accountId, @RequestBody DirectoryOAuthRequest request) {
+    public ResponseEntity<Void> putDirectoryOAuth(@PathVariable String accountId, @Valid @RequestBody DirectoryOAuthRequest request) {
         adminApiService.putOAuth(accountId, request);
         return ResponseEntity.ok().build();
     }

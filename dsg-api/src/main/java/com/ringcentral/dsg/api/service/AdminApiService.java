@@ -33,7 +33,7 @@ public class AdminApiService {
     private final Map<String, JobReportResponse> reportByJobId = new ConcurrentHashMap<>();
 
     public void createDirectory(String accountId, DirectoryConfigRequest request) {
-        directoryByAccount.put(accountId, new DirectoryRecord(request.directoryType(), null, false));
+        directoryByAccount.put(accountId, new DirectoryRecord(request.directoryType().name(), null, false));
     }
 
     public void updateDirectory(String accountId, DirectoryUpdateRequest request) {
@@ -57,7 +57,7 @@ public class AdminApiService {
         if (request == null) {
             return new DirectoryOAuthResponse(null, null, null);
         }
-        return new DirectoryOAuthResponse(request.directoryType(), maskClientId(request.clientId()), Instant.now().plusSeconds(3600));
+        return new DirectoryOAuthResponse(request.directoryType().name(), maskClientId(request.clientId()), Instant.now().plusSeconds(3600));
     }
 
     public boolean testOAuth(String accountId) {
