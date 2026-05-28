@@ -60,6 +60,28 @@ public class AdminApiService {
         return directoryConfigService.testOAuth(accountId);
     }
 
+    public com.ringcentral.dsg.api.model.AdminApiModels.DirectoryOAuthConfigResponse getOAuthConfig(String accountId) {
+        return directoryConfigService.getOAuthConfig(accountId);
+    }
+
+    public java.util.Map<String, String> getDirectoryAuthorizeUrl(String accountId) {
+        return directoryConfigService.getDirectoryAuthorizeUrl(accountId);
+    }
+
+    public void exchangeDirectoryOAuthToken(
+            String accountId,
+            com.ringcentral.dsg.api.model.AdminApiModels.DirectoryOAuthTokenRequest request) {
+        directoryConfigService.exchangeDirectoryOAuthToken(accountId, request);
+    }
+
+    public void disconnectDirectoryOAuth(String accountId) {
+        directoryConfigService.disconnectDirectoryOAuth(accountId);
+    }
+
+    public com.ringcentral.dsg.api.model.AdminApiModels.DirectoryGroupsResponse listDirectoryGroups(String accountId) {
+        return directoryConfigService.listDirectoryGroups(accountId);
+    }
+
     public void configureScheduler(String accountId, SchedulerRequest request) {
         configurationService.configureScheduler(accountId, request);
     }
