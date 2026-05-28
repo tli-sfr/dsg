@@ -1,5 +1,12 @@
 package com.ringcentral.dsg.api.model;
 
+import jakarta.validation.Valid;
+import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.Min;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotEmpty;
+import jakarta.validation.constraints.NotNull;
+
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
@@ -9,7 +16,20 @@ public final class AdminApiModels {
     private AdminApiModels() {
     }
 
-    public record DirectoryConfigRequest(String directoryType, String etmSubscriberId) {
+    public enum DirectoryType {
+        Azure,
+        Okta,
+        Google,
+        OneLogin
+    }
+
+    public enum JobType {
+        FULL,
+        INCREMENTAL,
+        ON_DEMAND
+    }
+
+    public record DirectoryConfigRequest(@NotNull DirectoryType directoryType, String etmSubscriberId) {
     }
 
     public record DirectoryUpdateRequest(String directoryGroupId, Boolean active) {
@@ -18,7 +38,11 @@ public final class AdminApiModels {
     public record DirectoryResponse(String directoryType, String directoryGroupId, boolean active, boolean connected) {
     }
 
-    public record DirectoryOAuthRequest(String directoryType, String authFlow, String clientId, String clientSecret) {
+    public record DirectoryOAuthRequest(
+            @NotNull DirectoryType directoryType,
+            @NotBlank String authFlow,
+            @NotBlank String clientId,
+            @NotBlank String clientSecret) {
     }
 
     public record DirectoryOAuthResponse(String directoryType, String clientId, Instant tokenExpiresAt) {
@@ -27,15 +51,20 @@ public final class AdminApiModels {
     public record SchedulerRequest(Boolean incrementalEnabled, String cronExpression, String syncDirection) {
     }
 
-    public record AttributeMappingRow(String syncDirection, String directoryAttribute, String rcAttribute) {
+    public record AttributeMappingRow(
+            @NotBlank String syncDirection,
+            @NotBlank String directoryAttribute,
+            @NotBlank String rcAttribute) {
     }
 
-    public record AttributeMappingRequest(List<AttributeMappingRow> basicMappings, List<AttributeMappingRow> customMappings) {
+    public record AttributeMappingRequest(
+            @NotNull List<@Valid AttributeMappingRow> basicMappings,
+            @NotNull List<@Valid AttributeMappingRow> customMappings) {
     }
 
     public record ProvisioningRuleRequest(
-            String ruleName,
-            Integer priority,
+            @NotBlank String ruleName,
+            @NotNull @Min(1) @Max(1000) Integer priority,
             Map<String, Object> selectionExpression,
             List<Map<String, Object>> licenseAssignments,
             List<Map<String, Object>> ruleBasedAttributeMappings,
@@ -44,7 +73,7 @@ public final class AdminApiModels {
             List<Map<String, Object>> templateAssignments) {
     }
 
-    public record CreateJobRequest(String jobType, List<String> externalUserIds) {
+    public record CreateJobRequest(@NotNull JobType jobType, @NotNull List<String> externalUserIds) {
     }
 
     public record JobResponse(String jobId, String state) {
