@@ -16,6 +16,7 @@
     <module>dsg-domain</module>
     <module>dsg-messaging</module>
     <module>dsg-persistence</module>
+    <module>dsg-api</module>
   </modules>
 
   <properties>
