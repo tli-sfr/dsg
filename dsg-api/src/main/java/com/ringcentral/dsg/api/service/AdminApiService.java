@@ -1,5 +1,6 @@
 package com.ringcentral.dsg.api.service;
 
+import com.ringcentral.dsg.api.model.AdminApiModels.AttributeMappingConfigResponse;
 import com.ringcentral.dsg.api.model.AdminApiModels.AttributeMappingRequest;
 import com.ringcentral.dsg.api.model.AdminApiModels.DeprovisioningRequest;
 import com.ringcentral.dsg.api.model.AdminApiModels.DeprovisioningResponse;
@@ -61,6 +62,10 @@ public class AdminApiService {
 
     public void configureScheduler(String accountId, SchedulerRequest request) {
         configurationService.configureScheduler(accountId, request);
+    }
+
+    public AttributeMappingConfigResponse getAttributeMappingConfig(String accountId) {
+        return configurationService.getAttributeMappingConfig(accountId);
     }
 
     public void saveAttributeMapping(String accountId, AttributeMappingRequest request) {

@@ -259,4 +259,10 @@ public class ConfigurationService {
     private String stringValue(Object value) {
         return value != null ? value.toString() : null;
     }
+
+    private List<AttributeCatalogItem> toCatalogItems(List<AttributeCatalogEntry> entries) {
+        return entries.stream()
+                .map(e -> new AttributeCatalogItem(e.attributeName(), e.attributePath(), e.displayName()))
+                .toList();
+    }
 }
