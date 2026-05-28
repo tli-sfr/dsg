@@ -8,9 +8,11 @@ import com.ringcentral.dsg.api.model.AdminApiModels.AttributeMappingItem;
 import com.ringcentral.dsg.api.model.AdminApiModels.AttributeMappingRequest;
 import com.ringcentral.dsg.api.model.AdminApiModels.AttributeMappingRow;
 import com.ringcentral.dsg.api.model.AdminApiModels.DeprovisioningResponse;
+import com.ringcentral.dsg.api.model.AdminApiModels.ProvisioningRuleDetailResponse;
 import com.ringcentral.dsg.api.model.AdminApiModels.ProvisioningRuleListResponse;
 import com.ringcentral.dsg.api.model.AdminApiModels.ProvisioningRuleRequest;
 import com.ringcentral.dsg.api.model.AdminApiModels.ProvisioningRuleSummary;
+import com.ringcentral.dsg.persistence.model.ProvisioningRuleRecord;
 import com.ringcentral.dsg.api.model.AdminApiModels.SchedulerRequest;
 import com.ringcentral.dsg.persistence.repo.DeprovisioningRuleRepository;
 import com.ringcentral.dsg.persistence.model.AccountDirectoryAuthRecord;
@@ -24,9 +26,12 @@ import com.ringcentral.dsg.persistence.repo.DefaultAttributeMappingRepository;
 import com.ringcentral.dsg.persistence.repo.DirectorySyncTimeRepository;
 import com.ringcentral.dsg.persistence.repo.LookupRepository;
 import com.ringcentral.dsg.persistence.repo.ProvisioningRuleRepository;
+import com.ringcentral.dsg.persistence.service.EffectiveDirectoryTypeResolver;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -42,6 +47,7 @@ public class ConfigurationService {
     private final ProvisioningRuleRepository provisioningRuleRepository;
     private final DeprovisioningRuleRepository deprovisioningRuleRepository;
     private final LookupRepository lookupRepository;
+    private final EffectiveDirectoryTypeResolver effectiveDirectoryTypeResolver;
     private final ObjectMapper objectMapper;
 
     public ConfigurationService(
@@ -54,6 +60,7 @@ public class ConfigurationService {
             ProvisioningRuleRepository provisioningRuleRepository,
             DeprovisioningRuleRepository deprovisioningRuleRepository,
             LookupRepository lookupRepository,
+            EffectiveDirectoryTypeResolver effectiveDirectoryTypeResolver,
             ObjectMapper objectMapper) {
         this.authRepository = authRepository;
         this.syncTimeRepository = syncTimeRepository;
@@ -64,6 +71,7 @@ public class ConfigurationService {
         this.provisioningRuleRepository = provisioningRuleRepository;
         this.deprovisioningRuleRepository = deprovisioningRuleRepository;
         this.lookupRepository = lookupRepository;
+        this.effectiveDirectoryTypeResolver = effectiveDirectoryTypeResolver;
         this.objectMapper = objectMapper;
     }
 
@@ -122,12 +130,13 @@ public class ConfigurationService {
     }
 
     public AttributeMappingConfigResponse getAttributeMappingConfig(String accountId) {
-        AccountDirectoryAuthRecord auth = requireDirectoryAuth(accountId);
+        requireDirectoryAuth(accountId);
+        int directoryTypeId = effectiveDirectoryTypeResolver.resolveDirectoryTypeId(accountId);
         int directionId = 1;
-        boolean configured = attributeMappingRepository.countBasicMappings(accountId) > 0;
+        boolean configured = attributeMappingRepository.countBasicMappings(accountId, directoryTypeId) > 0;
         List<AttributeMappingView> views = configured
-                ? attributeMappingRepository.listAccountMappings(accountId, directionId)
-                : defaultAttributeMappingRepository.listDefaults(auth.directoryTypeId(), directionId);
+                ? attributeMappingRepository.listAccountMappings(accountId, directionId, directoryTypeId)
+                : defaultAttributeMappingRepository.listDefaults(directoryTypeId, directionId);
 
         List<AttributeMappingItem> mappings = views.stream()
                 .map(v -> new AttributeMappingItem(
@@ -141,20 +150,21 @@ public class ConfigurationService {
                 "DIR_TO_RC",
                 configured,
                 mappings,
-                toCatalogItems(attributeCatalogRepository.listDirectoryAttributes(auth.directoryTypeId())),
+                toCatalogItems(attributeCatalogRepository.listDirectoryAttributes(directoryTypeId)),
                 toCatalogItems(attributeCatalogRepository.listRcAttributes()));
     }
 
     @Transactional
     public void saveAttributeMapping(String accountId, AttributeMappingRequest request) {
-        AccountDirectoryAuthRecord auth = requireDirectoryAuth(accountId);
+        requireDirectoryAuth(accountId);
+        int directoryTypeId = effectiveDirectoryTypeResolver.resolveDirectoryTypeId(accountId);
         attributeMappingRepository.replaceForAccount(accountId);
 
         for (AttributeMappingRow row : request.basicMappings()) {
             int directionId = lookupRepository.findSyncDirectionId(row.syncDirection()).orElse(1);
             int rcAttributeId = attributeMetadataRepository.findOrCreateRcAttributeId(row.rcAttribute());
             int directoryAttributeId = attributeMetadataRepository.findOrCreateDirectoryAttributeId(
-                    auth.directoryTypeId(),
+                    directoryTypeId,
                     row.directoryAttribute());
             attributeMappingRepository.insertBasicMapping(
                     accountId,
@@ -172,6 +182,60 @@ public class ConfigurationService {
         }
     }
 
+    public ProvisioningRuleDetailResponse getRule(String accountId, long ruleId) {
+        requireDirectoryAuth(accountId);
+        ProvisioningRuleRecord record = provisioningRuleRepository.findByIdAndAccount(accountId, ruleId)
+                .orElseThrow(() -> new IllegalArgumentException("Rule not found: " + ruleId));
+
+        List<Map<String, Object>> licenseAssignments = new ArrayList<>();
+        String licenseId = provisioningRuleRepository.findPrimaryLicenseId(ruleId);
+        if (licenseId != null) {
+            licenseAssignments.add(Map.of(
+                    "licenseType", "PRIMARY_LICENSE",
+                    "licenseId", licenseId));
+        }
+
+        Map<String, Object> areaCodeAssignment = provisioningRuleRepository.findAreaCodeListJson(ruleId)
+                .map(json -> Map.<String, Object>of(
+                        "areaCodeRuleType", "SPECIFIED_AREA_CODE",
+                        "areaCodeList", parseAreaCodeList(json)))
+                .orElse(null);
+
+        List<Map<String, Object>> deviceAssignments = provisioningRuleRepository.findDeviceType(ruleId)
+                .map(type -> List.<Map<String, Object>>of(Map.of("deviceType", toApiDeviceType(type))))
+                .orElse(List.of());
+
+        List<Map<String, Object>> templateAssignments = provisioningRuleRepository.findCallHandlingTemplateId(ruleId)
+                .map(id -> List.<Map<String, Object>>of(Map.of(
+                        "templateType", "CALL_HANDLING",
+                        "templateId", id)))
+                .orElse(List.of());
+
+        List<Map<String, Object>> ruleBasedMappings = provisioningRuleRepository.listRuleBasedMappings(ruleId).stream()
+                .map(m -> {
+                    Map<String, Object> row = new LinkedHashMap<>();
+                    row.put("directoryAttributePath", m.directoryAttributePath());
+                    row.put("directoryAttributeValue", m.directoryAttributeValue());
+                    row.put("rcRuleBasedAttribute", m.rcAttributeName());
+                    if (m.rcObjectId() != null) {
+                        row.put("rcObjectId", m.rcObjectId());
+                    }
+                    return row;
+                })
+                .toList();
+
+        return new ProvisioningRuleDetailResponse(
+                Long.toString(record.id()),
+                record.ruleName(),
+                record.priority(),
+                parseSelectionExpression(record.selectionExpressionJson()),
+                licenseAssignments,
+                ruleBasedMappings,
+                areaCodeAssignment,
+                deviceAssignments,
+                templateAssignments);
+    }
+
     @Transactional
     public void saveRule(String accountId, ProvisioningRuleRequest request) {
         requireDirectoryAuth(accountId);
@@ -181,7 +245,21 @@ public class ConfigurationService {
                 request.ruleName(),
                 request.priority(),
                 selectionJson);
+        applyRuleAssignments(accountId, ruleId, request);
+    }
 
+    @Transactional
+    public void updateRule(String accountId, long ruleId, ProvisioningRuleRequest request) {
+        requireDirectoryAuth(accountId);
+        provisioningRuleRepository.findByIdAndAccount(accountId, ruleId)
+                .orElseThrow(() -> new IllegalArgumentException("Rule not found: " + ruleId));
+        String selectionJson = toJson(request.selectionExpression());
+        provisioningRuleRepository.updateRuleById(
+                ruleId, request.ruleName(), request.priority(), selectionJson);
+        applyRuleAssignments(accountId, ruleId, request);
+    }
+
+    private void applyRuleAssignments(String accountId, long ruleId, ProvisioningRuleRequest request) {
         if (request.licenseAssignments() != null) {
             for (Map<String, Object> assignment : request.licenseAssignments()) {
                 String licenseType = stringValue(assignment.get("licenseType"));
@@ -237,6 +315,30 @@ public class ConfigurationService {
                         stringValue(mapping.get("rcObjectId")));
             }
         }
+    }
+
+    @SuppressWarnings("unchecked")
+    private List<String> parseAreaCodeList(String json) {
+        if (json == null || json.isBlank()) {
+            return List.of();
+        }
+        try {
+            Object parsed = objectMapper.readValue(json, Object.class);
+            if (parsed instanceof List<?> list) {
+                return list.stream().map(Object::toString).toList();
+            }
+        } catch (JsonProcessingException ignored) {
+            // fall through to comma-separated
+        }
+        return List.of(json.split(",")).stream().map(String::trim).filter(s -> !s.isEmpty()).toList();
+    }
+
+    private String toApiDeviceType(String dbType) {
+        return switch (dbType) {
+            case "RINGCENTRAL_APP" -> "RingCentral App";
+            case "INVENTORY_PHONE" -> "Inventory phone";
+            default -> dbType;
+        };
     }
 
     private AccountDirectoryAuthRecord requireDirectoryAuth(String accountId) {

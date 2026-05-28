@@ -4,6 +4,7 @@ import com.ringcentral.dsg.api.model.AdminApiModels.AttributeMappingConfigRespon
 import com.ringcentral.dsg.api.model.AdminApiModels.AttributeMappingRequest;
 import com.ringcentral.dsg.api.model.AdminApiModels.DeprovisioningRequest;
 import com.ringcentral.dsg.api.model.AdminApiModels.DeprovisioningResponse;
+import com.ringcentral.dsg.api.model.AdminApiModels.ProvisioningRuleDetailResponse;
 import com.ringcentral.dsg.api.model.AdminApiModels.ProvisioningRuleListResponse;
 import com.ringcentral.dsg.api.model.AdminApiModels.ProvisioningRuleRequest;
 import com.ringcentral.dsg.api.model.AdminApiModels.SchedulerRequest;
@@ -51,10 +52,25 @@ public class ConfigurationController {
         return ResponseEntity.ok(adminApiService.listRules(accountId));
     }
 
+    @GetMapping("/rules/{ruleId}")
+    public ResponseEntity<ProvisioningRuleDetailResponse> getRule(
+            @PathVariable String accountId, @PathVariable long ruleId) {
+        return ResponseEntity.ok(adminApiService.getRule(accountId, ruleId));
+    }
+
     @PostMapping("/rule")
     public ResponseEntity<Void> createProvisioningRule(@PathVariable String accountId, @Valid @RequestBody ProvisioningRuleRequest request) {
         adminApiService.saveRule(accountId, request);
         return ResponseEntity.status(HttpStatus.CREATED).build();
+    }
+
+    @PutMapping("/rule/{ruleId}")
+    public ResponseEntity<Void> updateProvisioningRule(
+            @PathVariable String accountId,
+            @PathVariable long ruleId,
+            @Valid @RequestBody ProvisioningRuleRequest request) {
+        adminApiService.updateRule(accountId, ruleId, request);
+        return ResponseEntity.ok().build();
     }
 
     @GetMapping("/deprovisioning")
