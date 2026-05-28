@@ -33,6 +33,18 @@ API base: `http://localhost:8080/dsg/v1/{accountId}/...`
 
 Stop backend: `./scripts/dev-stop.sh`
 
+**Admin UI (Epic 7):**
+
+```bash
+# Terminal 1: backend (see above)
+# Terminal 2:
+cd dsg-ui && cp .env.example .env.local && npm install && npm run dev
+```
+
+Open `http://localhost:5173/directory-integration?accountId=demo-acct` (proxies API to :8080).
+
+RC OAuth standalone: see [docs/api/rc-oauth-dev-setup.md](docs/api/rc-oauth-dev-setup.md).
+
 **Build / test:**
 
 ```bash

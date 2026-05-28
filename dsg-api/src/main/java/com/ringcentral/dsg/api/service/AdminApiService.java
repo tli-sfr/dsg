@@ -1,6 +1,9 @@
 package com.ringcentral.dsg.api.service;
 
 import com.ringcentral.dsg.api.model.AdminApiModels.AttributeMappingRequest;
+import com.ringcentral.dsg.api.model.AdminApiModels.DeprovisioningRequest;
+import com.ringcentral.dsg.api.model.AdminApiModels.DeprovisioningResponse;
+import com.ringcentral.dsg.api.model.AdminApiModels.ProvisioningRuleListResponse;
 import com.ringcentral.dsg.api.model.AdminApiModels.CreateJobRequest;
 import com.ringcentral.dsg.api.model.AdminApiModels.DirectoryConfigRequest;
 import com.ringcentral.dsg.api.model.AdminApiModels.DirectoryOAuthRequest;
@@ -66,6 +69,18 @@ public class AdminApiService {
 
     public void saveRule(String accountId, ProvisioningRuleRequest request) {
         configurationService.saveRule(accountId, request);
+    }
+
+    public ProvisioningRuleListResponse listRules(String accountId) {
+        return configurationService.listRules(accountId);
+    }
+
+    public DeprovisioningResponse getDeprovisioning(String accountId) {
+        return configurationService.getDeprovisioning(accountId);
+    }
+
+    public void saveDeprovisioning(String accountId, DeprovisioningRequest request) {
+        configurationService.saveDeprovisioning(accountId, request.deprovisioningType());
     }
 
     public Optional<JobResponse> createJob(String accountId, CreateJobRequest request) {

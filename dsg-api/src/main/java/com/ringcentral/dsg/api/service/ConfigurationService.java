@@ -4,8 +4,12 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.ringcentral.dsg.api.model.AdminApiModels.AttributeMappingRequest;
 import com.ringcentral.dsg.api.model.AdminApiModels.AttributeMappingRow;
+import com.ringcentral.dsg.api.model.AdminApiModels.DeprovisioningResponse;
+import com.ringcentral.dsg.api.model.AdminApiModels.ProvisioningRuleListResponse;
 import com.ringcentral.dsg.api.model.AdminApiModels.ProvisioningRuleRequest;
+import com.ringcentral.dsg.api.model.AdminApiModels.ProvisioningRuleSummary;
 import com.ringcentral.dsg.api.model.AdminApiModels.SchedulerRequest;
+import com.ringcentral.dsg.persistence.repo.DeprovisioningRuleRepository;
 import com.ringcentral.dsg.persistence.model.AccountDirectoryAuthRecord;
 import com.ringcentral.dsg.persistence.repo.AccountDirectoryAuthRepository;
 import com.ringcentral.dsg.persistence.repo.AttributeMappingRepository;
@@ -16,6 +20,7 @@ import com.ringcentral.dsg.persistence.repo.ProvisioningRuleRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.List;
 import java.util.Map;
 
 @Service
@@ -26,6 +31,7 @@ public class ConfigurationService {
     private final AttributeMappingRepository attributeMappingRepository;
     private final AttributeMetadataRepository attributeMetadataRepository;
     private final ProvisioningRuleRepository provisioningRuleRepository;
+    private final DeprovisioningRuleRepository deprovisioningRuleRepository;
     private final LookupRepository lookupRepository;
     private final ObjectMapper objectMapper;
 
@@ -35,6 +41,7 @@ public class ConfigurationService {
             AttributeMappingRepository attributeMappingRepository,
             AttributeMetadataRepository attributeMetadataRepository,
             ProvisioningRuleRepository provisioningRuleRepository,
+            DeprovisioningRuleRepository deprovisioningRuleRepository,
             LookupRepository lookupRepository,
             ObjectMapper objectMapper) {
         this.authRepository = authRepository;
@@ -42,8 +49,47 @@ public class ConfigurationService {
         this.attributeMappingRepository = attributeMappingRepository;
         this.attributeMetadataRepository = attributeMetadataRepository;
         this.provisioningRuleRepository = provisioningRuleRepository;
+        this.deprovisioningRuleRepository = deprovisioningRuleRepository;
         this.lookupRepository = lookupRepository;
         this.objectMapper = objectMapper;
+    }
+
+    public ProvisioningRuleListResponse listRules(String accountId) {
+        List<ProvisioningRuleSummary> rules = provisioningRuleRepository.listByAccountOrderByPriority(accountId).stream()
+                .map(record -> new ProvisioningRuleSummary(
+                        Long.toString(record.id()),
+                        record.ruleName(),
+                        record.priority(),
+                        parseSelectionExpression(record.selectionExpressionJson())))
+                .toList();
+        return new ProvisioningRuleListResponse(rules);
+    }
+
+    public DeprovisioningResponse getDeprovisioning(String accountId) {
+        return deprovisioningRuleRepository
+                .findByAccountId(accountId)
+                .map(record -> new DeprovisioningResponse(record.deprovisioningType()))
+                .orElse(new DeprovisioningResponse("FULL_DELETE"));
+    }
+
+    @Transactional
+    public void saveDeprovisioning(String accountId, String deprovisioningType) {
+        int typeId = lookupRepository
+                .findDeprovisioningTypeId(deprovisioningType)
+                .orElseThrow(() -> new IllegalArgumentException("Unknown deprovisioning type: " + deprovisioningType));
+        deprovisioningRuleRepository.upsert(accountId, typeId);
+    }
+
+    @SuppressWarnings("unchecked")
+    private Map<String, Object> parseSelectionExpression(String json) {
+        if (json == null || json.isBlank()) {
+            return Map.of("match", "ALL");
+        }
+        try {
+            return objectMapper.readValue(json, Map.class);
+        } catch (JsonProcessingException ex) {
+            return Map.of("match", "ALL", "raw", json);
+        }
     }
 
     @Transactional

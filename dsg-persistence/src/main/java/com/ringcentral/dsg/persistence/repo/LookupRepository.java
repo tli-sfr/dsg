@@ -55,6 +55,10 @@ public class LookupRepository {
         return findIdByColumn("rc_rule_based_attribute", "attribute_name", attributeName);
     }
 
+    public Optional<Integer> findDeprovisioningTypeId(String type) {
+        return findIdByColumn("deprovisioning_type", "type", type);
+    }
+
     public int defaultJobFrequencyId() {
         return 1;
     }
