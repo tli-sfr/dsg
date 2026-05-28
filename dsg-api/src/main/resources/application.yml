@@ -12,6 +12,11 @@ spring:
 dsg:
   crypto:
     secret-key: local-dev-only-change-me
+  rc:
+    server-url: ${DSG_RC_SERVER_URL:https://platform.devtest.ringcentral.com}
+    client-id: ${DSG_RC_CLIENT_ID:}
+    client-secret: ${DSG_RC_CLIENT_SECRET:}
+    redirect-uri: ${DSG_RC_REDIRECT_URI:http://localhost:5173/oauth/callback}
   messaging:
     endpoint: http://localhost:9324
     region: us-east-1

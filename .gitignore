@@ -8,4 +8,5 @@ config/zscaler-root-ca.pem
 .settings/
 .env
 .env.local
+dsg-api/src/main/resources/application-local.yml
 *.log

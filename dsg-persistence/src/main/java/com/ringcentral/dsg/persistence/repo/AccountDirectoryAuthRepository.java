@@ -19,6 +19,7 @@ public class AccountDirectoryAuthRepository {
             rs.getString("directory_group_id"),
             rs.getString("etm_subscriber_id"),
             rs.getObject("oauth_config_id") != null ? rs.getLong("oauth_config_id") : null,
+            rs.getString("rc_refresh_token"),
             rs.getInt("active") == 1);
 
     private final JdbcTemplate jdbcTemplate;
@@ -74,7 +75,8 @@ public class AccountDirectoryAuthRepository {
     public Optional<AccountDirectoryAuthRecord> findByAccountId(String accountId) {
         String sql = """
                 SELECT a.id, a.account_id, a.directory_type_id, t.directory_type,
-                       a.directory_group_id, a.etm_subscriber_id, a.oauth_config_id, a.active
+                       a.directory_group_id, a.etm_subscriber_id, a.oauth_config_id,
+                       a.rc_refresh_token, a.active
                 FROM account_directory_auth a
                 JOIN directory_type t ON t.id = a.directory_type_id
                 WHERE a.account_id = ?
@@ -84,5 +86,48 @@ public class AccountDirectoryAuthRepository {
         } catch (EmptyResultDataAccessException ex) {
             return Optional.empty();
         }
+    }
+
+    public void updateRcRefreshToken(String accountId, String encryptedRefreshToken) {
+        int updated = jdbcTemplate.update("""
+                UPDATE account_directory_auth
+                SET rc_refresh_token = ?
+                WHERE account_id = ?
+                """, encryptedRefreshToken, accountId);
+        if (updated == 0) {
+            jdbcTemplate.update("""
+                    INSERT INTO account_directory_auth (account_id, directory_type_id, rc_refresh_token, active)
+                    VALUES (?, 1, ?, 0)
+                    """, accountId, encryptedRefreshToken);
+        }
+    }
+
+    public Optional<String> findRcRefreshToken(String accountId) {
+        String sql = """
+                SELECT rc_refresh_token
+                FROM account_directory_auth
+                WHERE account_id = ? AND rc_refresh_token IS NOT NULL
+                LIMIT 1
+                """;
+        try {
+            return Optional.ofNullable(jdbcTemplate.queryForObject(sql, String.class, accountId));
+        } catch (EmptyResultDataAccessException ex) {
+            return Optional.empty();
+        }
+    }
+
+    public boolean hasRcRefreshToken(String accountId) {
+        Integer count = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM account_directory_auth WHERE account_id = ? AND rc_refresh_token IS NOT NULL",
+                Integer.class,
+                accountId);
+        return count != null && count > 0;
+    }
+
+    public void migrateRcRefreshToken(String fromAccountId, String toAccountId) {
+        if (fromAccountId.equals(toAccountId)) {
+            return;
+        }
+        findRcRefreshToken(fromAccountId).ifPresent(token -> updateRcRefreshToken(toAccountId, token));
     }
 }

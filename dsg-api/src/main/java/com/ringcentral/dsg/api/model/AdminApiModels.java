@@ -48,6 +48,19 @@ public final class AdminApiModels {
     public record DirectoryOAuthResponse(String directoryType, String clientId, Instant tokenExpiresAt) {
     }
 
+    public record RcOAuthTokenRequest(@NotBlank String code, @NotBlank String state) {
+    }
+
+    public record RcOAuthStatusResponse(boolean configured, boolean connected) {
+    }
+
+    public record RcOAuthSessionResponse(
+            String rcAccountId,
+            Long extensionId,
+            String extensionNumber,
+            String extensionName) {
+    }
+
     public record SchedulerRequest(Boolean incrementalEnabled, String cronExpression, String syncDirection) {
     }
 

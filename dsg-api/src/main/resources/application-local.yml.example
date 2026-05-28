@@ -1,0 +1,12 @@
+# Local RingCentral OAuth credentials — copy to application-local.yml (gitignored).
+# Activate with: mvn -pl dsg-api spring-boot:run -Dspring-boot.run.profiles=local
+# Or set SPRING_PROFILES_ACTIVE=local when running ./scripts/dev-run.sh
+
+dsg:
+  rc:
+    client-id: <your-rc-client-id>
+    client-secret: <your-rc-client-secret>
+    server-url: https://platform.devtest.ringcentral.com
+    redirect-uri: http://localhost:5173/oauth/callback
+    # Production-style local dev (Caddy + dirsync.ringcentral.com):
+    # redirect-uri: https://dirsync.ringcentral.com/mobile/oauthredirect
