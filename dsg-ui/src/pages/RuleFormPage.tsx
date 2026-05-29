@@ -1,58 +1,143 @@
-import { Link, useNavigate } from 'react-router-dom';
-import { useState } from 'react';
+import { Link, useNavigate, useParams } from 'react-router-dom';
+import { useEffect, useState } from 'react';
 import { api } from '../api/client';
 import type { SelectionCriterion } from '../api/types';
 import { useAccountId } from '../components/AccountBar';
 import { Card } from '../components/Card';
+import { ProductLicensePicker } from '../components/ProductLicensePicker';
+import type { ProductLicenseId } from '../lib/productLicenses';
+
+function isProductLicenseId(value: string): value is ProductLicenseId {
+  return value === 'VideoPro' || value === 'VideoProPlus' || value === 'RingEX';
+}
 
 export function RuleFormPage() {
+  const { ruleId: ruleIdParam } = useParams();
+  const isEdit = Boolean(ruleIdParam);
   const accountId = useAccountId();
   const navigate = useNavigate();
+  const [loading, setLoading] = useState(isEdit);
   const [ruleName, setRuleName] = useState('');
   const [priority, setPriority] = useState(1);
   const [matchAll, setMatchAll] = useState(true);
   const [criteria, setCriteria] = useState<SelectionCriterion[]>([
     { attribute: 'user.department', operator: 'EQ', value: 'Sales' },
   ]);
-  const [licenseId, setLicenseId] = useState('RingEX');
+  const [licenseId, setLicenseId] = useState<ProductLicenseId>('RingEX');
   const [areaCodes, setAreaCodes] = useState('+1-650');
   const [deviceType, setDeviceType] = useState('RingCentral App');
   const [templateId, setTemplateId] = useState('');
   const [error, setError] = useState<string | null>(null);
 
-  async function submit(e: React.FormEvent) {
-    e.preventDefault();
-    setError(null);
+  useEffect(() => {
+    if (!isEdit || !ruleIdParam) {
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      setLoading(true);
+      setError(null);
+      try {
+        const rule = await api.getRule(accountId, ruleIdParam);
+        if (cancelled) {
+          return;
+        }
+        setRuleName(rule.ruleName);
+        setPriority(rule.priority);
+        const expr = rule.selectionExpression;
+        const allUsers = expr?.match === 'ALL' && !Array.isArray(expr.criteria);
+        setMatchAll(allUsers);
+        if (!allUsers && Array.isArray(expr?.criteria)) {
+          setCriteria(
+            (expr.criteria as SelectionCriterion[]).map((c) => ({
+              attribute: String(c.attribute ?? ''),
+              operator: String(c.operator ?? 'EQ'),
+              value: String(c.value ?? ''),
+            })),
+          );
+        }
+        const primary = rule.licenseAssignments?.[0]?.licenseId;
+        if (primary && isProductLicenseId(primary)) {
+          setLicenseId(primary);
+        }
+        const codes = rule.areaCodeAssignment?.areaCodeList;
+        if (codes?.length) {
+          setAreaCodes(codes.join(', '));
+        }
+        const device = rule.deviceAssignments?.[0]?.deviceType;
+        if (device) {
+          setDeviceType(device);
+        }
+        const template = rule.templateAssignments?.[0]?.templateId;
+        if (template) {
+          setTemplateId(template);
+        }
+      } catch (err) {
+        if (!cancelled) {
+          setError(err instanceof Error ? err.message : 'Failed to load rule');
+        }
+      } finally {
+        if (!cancelled) {
+          setLoading(false);
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [accountId, isEdit, ruleIdParam]);
+
+  function buildPayload() {
     const selectionExpression = matchAll
       ? { match: 'ALL' }
       : { match: 'ALL', criteria };
 
+    return {
+      ruleName,
+      priority,
+      selectionExpression,
+      licenseAssignments: [{ licenseType: 'PRIMARY_LICENSE', licenseId }],
+      areaCodeAssignment: {
+        areaCodeRuleType: 'SPECIFIED_AREA_CODE',
+        areaCodeList: areaCodes.split(',').map((s) => s.trim()).filter(Boolean),
+      },
+      deviceAssignments: [{ deviceType }],
+      templateAssignments: templateId
+        ? [{ templateType: 'CALL_HANDLING', templateId }]
+        : [],
+      ruleBasedAttributeMappings: [],
+    };
+  }
+
+  async function submit(e: React.FormEvent) {
+    e.preventDefault();
+    setError(null);
+    const payload = buildPayload();
+
     try {
-      await api.createRule(accountId, {
-        ruleName,
-        priority,
-        selectionExpression,
-        licenseAssignments: [{ licenseType: 'PRIMARY_LICENSE', licenseId }],
-        areaCodeAssignment: {
-          areaCodeRuleType: 'SPECIFIED_AREA_CODE',
-          areaCodeList: areaCodes.split(',').map((s) => s.trim()),
-        },
-        deviceAssignments: [{ deviceType }],
-        templateAssignments: templateId
-          ? [{ templateType: 'CALL_HANDLING', templateId }]
-          : [],
-        ruleBasedAttributeMappings: [],
-      });
+      if (isEdit && ruleIdParam) {
+        await api.updateRule(accountId, ruleIdParam, payload);
+      } else {
+        await api.createRule(accountId, payload);
+      }
       navigate(`/directory-integration?accountId=${accountId}`);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Save failed');
     }
   }
 
+  if (loading) {
+    return (
+      <div className="mx-auto max-w-3xl p-6 text-sm text-slate-500">Loading rule…</div>
+    );
+  }
+
   return (
     <form className="mx-auto max-w-3xl space-y-6 p-6" onSubmit={submit}>
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-semibold text-rc-navy">Create provisioning rule</h1>
+        <h1 className="text-2xl font-semibold text-rc-navy">
+          {isEdit ? 'Edit provisioning rule' : 'Create provisioning rule'}
+        </h1>
         <Link
           to={`/directory-integration?accountId=${accountId}`}
           className="text-sm text-rc-orange"
@@ -145,14 +230,7 @@ export function RuleFormPage() {
       </Card>
 
       <Card title="2. Product licenses">
-        <label className="block text-sm">
-          Primary license
-          <input
-            className="mt-1 w-full rounded border border-slate-300 px-3 py-2"
-            value={licenseId}
-            onChange={(e) => setLicenseId(e.target.value)}
-          />
-        </label>
+        <ProductLicensePicker value={licenseId} onChange={setLicenseId} />
       </Card>
 
       <Card title="3. Custom attribute mapping (per rule)">

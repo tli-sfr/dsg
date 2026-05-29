@@ -1,7 +1,7 @@
 package com.ringcentral.dsg.api.rc;
 
 import com.ringcentral.dsg.api.model.AdminApiModels.RcOAuthSessionResponse;
-import com.ringcentral.dsg.persistence.repo.AccountDirectoryAuthRepository;
+import com.ringcentral.dsg.api.service.AccountScopeMigrationService;
 import com.ringcentral.dsg.rc.RcAuthPort;
 import org.springframework.stereotype.Service;
 
@@ -10,15 +10,15 @@ public class RcSessionService {
 
     private final RcAuthPort rcAuthPort;
     private final RcApiClient rcApiClient;
-    private final AccountDirectoryAuthRepository authRepository;
+    private final AccountScopeMigrationService accountScopeMigrationService;
 
     public RcSessionService(
             RcAuthPort rcAuthPort,
             RcApiClient rcApiClient,
-            AccountDirectoryAuthRepository authRepository) {
+            AccountScopeMigrationService accountScopeMigrationService) {
         this.rcAuthPort = rcAuthPort;
         this.rcApiClient = rcApiClient;
-        this.authRepository = authRepository;
+        this.accountScopeMigrationService = accountScopeMigrationService;
     }
 
     public RcOAuthSessionResponse getSession(String lookupAccountId) {
@@ -31,9 +31,8 @@ public class RcSessionService {
         }
 
         String rcAccountId = extension.parseAccountId();
-        if (!lookupAccountId.equals(rcAccountId)) {
-            authRepository.migrateRcRefreshToken(lookupAccountId, rcAccountId);
-        }
+        accountScopeMigrationService.migrateIfNeeded(lookupAccountId, rcAccountId);
+        accountScopeMigrationService.migrateKnownPlaceholders(rcAccountId);
 
         return new RcOAuthSessionResponse(
                 rcAccountId,

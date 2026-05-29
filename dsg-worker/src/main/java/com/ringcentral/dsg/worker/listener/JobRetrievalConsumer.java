@@ -37,6 +37,15 @@ public class JobRetrievalConsumer {
             try {
                 jobRetrievalService.processJobMessage(msg.payload());
                 messageQueuePort.acknowledgeJob(msg);
+            } catch (IllegalStateException ex) {
+                if (ex.getMessage() != null && ex.getMessage().startsWith("Job not found:")) {
+                    log.warn(
+                            "Job message jobId={} not visible yet (will retry after visibility timeout): {}",
+                            msg.payload().jobId(),
+                            ex.getMessage());
+                } else {
+                    log.error("Failed to process job message jobId={}", msg.payload().jobId(), ex);
+                }
             } catch (RuntimeException ex) {
                 log.error("Failed to process job message jobId={}", msg.payload().jobId(), ex);
             }

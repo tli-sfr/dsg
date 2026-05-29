@@ -14,13 +14,19 @@ import com.ringcentral.dsg.persistence.model.JobSummaryData;
 import com.ringcentral.dsg.persistence.repo.AccountDirectoryAuthRepository;
 import com.ringcentral.dsg.persistence.repo.JobRepository;
 import com.ringcentral.dsg.persistence.repo.LookupRepository;
+import com.ringcentral.dsg.persistence.tx.AfterCommitRunner;
+import com.ringcentral.dsg.worker.service.JobConsolidatorService;
 import java.util.List;
 import java.util.Optional;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 @Service
 public class JobManagerService {
+
+    private static final Logger log = LoggerFactory.getLogger(JobManagerService.class);
 
     private static final int DEFAULT_SYNC_DIRECTION_ID = 1;
     private static final int DEFAULT_JOB_HISTORY_LIMIT = 20;
@@ -29,21 +35,26 @@ public class JobManagerService {
     private final AccountDirectoryAuthRepository authRepository;
     private final LookupRepository lookupRepository;
     private final MessageQueuePort messageQueuePort;
+    private final JobConsolidatorService consolidatorService;
 
     public JobManagerService(
             JobRepository jobRepository,
             AccountDirectoryAuthRepository authRepository,
             LookupRepository lookupRepository,
-            MessageQueuePort messageQueuePort) {
+            MessageQueuePort messageQueuePort,
+            JobConsolidatorService consolidatorService) {
         this.jobRepository = jobRepository;
         this.authRepository = authRepository;
         this.lookupRepository = lookupRepository;
         this.messageQueuePort = messageQueuePort;
+        this.consolidatorService = consolidatorService;
     }
 
     @Transactional
     public Optional<JobResponse> createJob(String accountId, CreateJobRequest request) {
+        consolidatorService.reconcileAccountJobs(accountId);
         if (jobRepository.hasActiveJob(accountId)) {
+            log.warn("Rejected new {} job for account {} — another job is still active", request.jobType(), accountId);
             return Optional.empty();
         }
 
@@ -61,7 +72,8 @@ public class JobManagerService {
                 DEFAULT_SYNC_DIRECTION_ID);
 
         String jobIdValue = Long.toString(jobId);
-        messageQueuePort.publishJob(new JobMessage(jobIdValue, accountId, request.jobType().name()));
+        JobMessage jobMessage = new JobMessage(jobIdValue, accountId, request.jobType().name());
+        AfterCommitRunner.run(() -> messageQueuePort.publishJob(jobMessage));
 
         return Optional.of(new JobResponse(jobIdValue, "PENDING"));
     }

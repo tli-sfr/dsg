@@ -19,6 +19,7 @@ public class RcOAuthService {
     private final RcOAuthClient oauthClient;
     private final AccountDirectoryAuthRepository authRepository;
     private final SecretEncryptionService encryptionService;
+    private final RcAccessTokenService accessTokenService;
     private final SecureRandom secureRandom = new SecureRandom();
     private final Map<String, String> pendingStates = new ConcurrentHashMap<>();
 
@@ -26,11 +27,13 @@ public class RcOAuthService {
             RcOAuthProperties properties,
             RcOAuthClient oauthClient,
             AccountDirectoryAuthRepository authRepository,
-            SecretEncryptionService encryptionService) {
+            SecretEncryptionService encryptionService,
+            RcAccessTokenService accessTokenService) {
         this.properties = properties;
         this.oauthClient = oauthClient;
         this.authRepository = authRepository;
         this.encryptionService = encryptionService;
+        this.accessTokenService = accessTokenService;
     }
 
     public Map<String, String> buildAuthorizeUrl(String accountId) {
@@ -53,14 +56,25 @@ public class RcOAuthService {
         validateState(accountId, state);
         RcTokenResponse tokenResponse = oauthClient.exchangeAuthorizationCode(code, properties.getRedirectUri());
         storeRefreshToken(accountId, tokenResponse);
+        accessTokenService.cacheAuthorizationResponse(accountId, tokenResponse);
     }
 
-    public boolean isConnected(String accountId) {
-        return authRepository.hasRcRefreshToken(accountId);
+    /**
+     * Whether the server has a refresh token that can produce a valid access token right now.
+     */
+    public boolean hasValidRefreshToken(String accountId) {
+        if (!authRepository.hasRcRefreshToken(accountId)) {
+            return false;
+        }
+        return accessTokenService.obtainAccessToken(accountId).isPresent();
     }
 
     public boolean isConfigured() {
         return properties.isConfigured();
+    }
+
+    public void logout(String accountId) {
+        authRepository.clearRcRefreshToken(accountId);
     }
 
     private void storeRefreshToken(String accountId, RcTokenResponse tokenResponse) {

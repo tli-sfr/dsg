@@ -4,6 +4,7 @@ import com.ringcentral.dsg.api.model.AdminApiModels.AttributeMappingConfigRespon
 import com.ringcentral.dsg.api.model.AdminApiModels.AttributeMappingRequest;
 import com.ringcentral.dsg.api.model.AdminApiModels.DeprovisioningRequest;
 import com.ringcentral.dsg.api.model.AdminApiModels.DeprovisioningResponse;
+import com.ringcentral.dsg.api.model.AdminApiModels.ProvisioningRuleDetailResponse;
 import com.ringcentral.dsg.api.model.AdminApiModels.ProvisioningRuleListResponse;
 import com.ringcentral.dsg.api.model.AdminApiModels.CreateJobRequest;
 import com.ringcentral.dsg.api.model.AdminApiModels.DirectoryConfigRequest;
@@ -98,6 +99,14 @@ public class AdminApiService {
 
     public void saveRule(String accountId, ProvisioningRuleRequest request) {
         configurationService.saveRule(accountId, request);
+    }
+
+    public void updateRule(String accountId, long ruleId, ProvisioningRuleRequest request) {
+        configurationService.updateRule(accountId, ruleId, request);
+    }
+
+    public ProvisioningRuleDetailResponse getRule(String accountId, long ruleId) {
+        return configurationService.getRule(accountId, ruleId);
     }
 
     public ProvisioningRuleListResponse listRules(String accountId) {

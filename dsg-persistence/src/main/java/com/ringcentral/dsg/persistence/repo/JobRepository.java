@@ -15,6 +15,7 @@ import java.sql.PreparedStatement;
 import java.sql.Statement;
 import java.util.List;
 import java.util.Optional;
+import java.util.stream.Collectors;
 
 @Repository
 public class JobRepository {
@@ -39,6 +40,36 @@ public class JobRepository {
                 Integer.class,
                 params);
         return count != null && count > 0;
+    }
+
+    public List<Long> findNonTerminalJobIdsForAccount(String accountId) {
+        String placeholders = String.join(",", NON_TERMINAL_STATE_IDS.stream().map(id -> "?").toList());
+        Object[] params = new Object[NON_TERMINAL_STATE_IDS.size() + 1];
+        params[0] = accountId;
+        for (int i = 0; i < NON_TERMINAL_STATE_IDS.size(); i++) {
+            params[i + 1] = NON_TERMINAL_STATE_IDS.get(i);
+        }
+        return jdbcTemplate.queryForList(
+                "SELECT id FROM job WHERE account_id = ? AND state_id IN (" + placeholders + ") ORDER BY id",
+                Long.class,
+                params);
+    }
+
+    public List<Long> findJobIdsInStates(List<String> stateNames) {
+        if (stateNames == null || stateNames.isEmpty()) {
+            return List.of();
+        }
+        String placeholders = String.join(",", stateNames.stream().map(s -> "?").toList());
+        return jdbcTemplate.queryForList(
+                """
+                        SELECT j.id
+                        FROM job j
+                        JOIN job_state s ON s.id = j.state_id
+                        WHERE s.state IN (%s)
+                        ORDER BY j.id
+                        """.formatted(placeholders),
+                Long.class,
+                stateNames.toArray());
     }
 
     public long createJob(String accountId, int jobTypeId, int directoryTypeId, int directionId) {
@@ -104,6 +135,21 @@ public class JobRepository {
                 Integer.class,
                 jobId);
         return count != null && count > 0;
+    }
+
+    public String summarizeJobDetailStates(long jobId) {
+        List<String> parts = jdbcTemplate.query(
+                """
+                        SELECT s.state, COUNT(*) AS cnt
+                        FROM job_detail jd
+                        JOIN job_state s ON s.id = jd.state_id
+                        WHERE jd.job_id = ?
+                        GROUP BY s.state
+                        ORDER BY s.state
+                        """,
+                (rs, rowNum) -> rs.getString("state") + "=" + rs.getInt("cnt"),
+                jobId);
+        return parts.isEmpty() ? "none" : parts.stream().collect(Collectors.joining(", "));
     }
 
     public Optional<String> findJobStateName(long jobId) {

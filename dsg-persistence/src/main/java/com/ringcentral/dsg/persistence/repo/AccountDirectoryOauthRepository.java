@@ -177,6 +177,24 @@ public class AccountDirectoryOauthRepository {
         return count != null && count > 0;
     }
 
+    public void moveRefreshTokens(String fromAccountId, String toAccountId) {
+        Optional<AccountDirectoryOauthCredentialsRecord> from = findCredentialsByAccountId(fromAccountId);
+        if (from.isEmpty()) {
+            return;
+        }
+        jdbcTemplate.update("""
+                UPDATE account_directory_oauth
+                SET refresh_token_enc = ?, access_token_enc = ?, access_token_expires_at = ?
+                WHERE account_id = ?
+                """,
+                from.get().refreshTokenEnc(),
+                from.get().accessTokenEnc(),
+                from.get().accessTokenExpiresAt() != null
+                        ? Timestamp.from(from.get().accessTokenExpiresAt())
+                        : null,
+                toAccountId);
+    }
+
     private static Instant toInstant(Timestamp timestamp) {
         return timestamp != null ? timestamp.toInstant() : null;
     }

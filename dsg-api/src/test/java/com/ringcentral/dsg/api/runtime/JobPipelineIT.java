@@ -4,9 +4,12 @@ import com.ringcentral.dsg.api.support.AbstractApiIntegrationTest;
 import com.ringcentral.dsg.messaging.JobDetailMessage;
 import com.ringcentral.dsg.messaging.JobMessage;
 import com.ringcentral.dsg.messaging.MessageQueuePort;
+import com.ringcentral.dsg.directory.DirectoryUser;
 import com.ringcentral.dsg.persistence.repo.AccountDirectoryAuthRepository;
 import com.ringcentral.dsg.persistence.repo.JobRepository;
 import com.ringcentral.dsg.persistence.repo.ProvisioningRuleRepository;
+import com.ringcentral.dsg.provisioning.ProvisioningResult;
+import com.ringcentral.dsg.provisioning.RcProvisioningPort;
 import com.ringcentral.dsg.worker.service.JobRetrievalService;
 import com.ringcentral.dsg.worker.service.SyncWorkerService;
 import org.junit.jupiter.api.BeforeEach;
@@ -16,10 +19,16 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.jdbc.core.JdbcTemplate;
 
+import java.util.Map;
+
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.clearInvocations;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 @SpringBootTest(properties = "dsg.messaging.listener.enabled=false")
 class JobPipelineIT extends AbstractApiIntegrationTest {
@@ -45,11 +54,29 @@ class JobPipelineIT extends AbstractApiIntegrationTest {
     @MockBean
     private MessageQueuePort messageQueuePort;
 
+    @MockBean
+    private RcProvisioningPort rcProvisioningPort;
+
+    private long allUsersRuleId;
+
     @BeforeEach
     void seedAccountAndJob() {
         authRepository.upsert("acct-worker", 2, null);
         authRepository.update("acct-worker", "sales-group", "Sales", true);
-        provisioningRuleRepository.upsertRule("acct-worker", "All Users", 1, "{\"match\":\"ALL\"}");
+        allUsersRuleId = provisioningRuleRepository.upsertRule("acct-worker", "All Users", 1, "{\"match\":\"ALL\"}");
+        provisioningRuleRepository.insertLicenseAssignment(allUsersRuleId, 1, "RingEX");
+
+        when(rcProvisioningPort.provisionUser(eq("acct-worker"), any(DirectoryUser.class), any()))
+                .thenAnswer(invocation -> {
+                    DirectoryUser user = invocation.getArgument(1, DirectoryUser.class);
+                    return new ProvisioningResult(
+                            "test-mailbox-" + user.externalId(), true, "test provision (no RC API)");
+                });
+        when(rcProvisioningPort.updateExtension(eq("acct-worker"), any(), any(DirectoryUser.class)))
+                .thenAnswer(invocation -> {
+                    String extensionId = invocation.getArgument(1, String.class);
+                    return new ProvisioningResult(extensionId, true, "test update (no RC API)");
+                });
     }
 
     @Test
@@ -81,7 +108,10 @@ class JobPipelineIT extends AbstractApiIntegrationTest {
                     Long.toString(jobId),
                     "acct-worker",
                     externalId,
-                    "CREATE"));
+                    "CREATE",
+                    Long.toString(allUsersRuleId),
+                    externalId + "@dsg-sync.dev",
+                    stubAttributes(externalId)));
         }
 
         String finalState = jdbcTemplate.queryForObject(
@@ -99,5 +129,37 @@ class JobPipelineIT extends AbstractApiIntegrationTest {
                 Integer.class,
                 jobId);
         assertEquals(2, succeeded);
+
+        Integer hashRows = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM directory_sync_user_hash WHERE account_id = ?",
+                Integer.class,
+                "acct-worker");
+        assertEquals(2, hashRows);
+
+        clearInvocations(messageQueuePort);
+        long jobId2 = jobRepository.createJob("acct-worker", 1, 2, 1);
+        jobRetrievalService.processJobMessage(new JobMessage(Long.toString(jobId2), "acct-worker", "FULL"));
+        verify(messageQueuePort, never()).publishJobDetail(any(JobDetailMessage.class));
+
+        String job2State = jdbcTemplate.queryForObject(
+                "SELECT s.state FROM job j JOIN job_state s ON s.id = j.state_id WHERE j.id = ?",
+                String.class,
+                jobId2);
+        assertEquals("COMPLETED", job2State);
+    }
+
+    private static Map<String, String> stubAttributes(String externalId) {
+        if (externalId.endsWith("user-1")) {
+            return Map.of(
+                    "profile.firstName", "Alex",
+                    "profile.lastName", "Morgan",
+                    "profile.email", externalId + "@dsg-sync.dev",
+                    "department", "Sales");
+        }
+        return Map.of(
+                "profile.firstName", "Jordan",
+                "profile.lastName", "Kim",
+                "profile.email", externalId + "@dsg-sync.dev",
+                "department", "Engineering");
     }
 }

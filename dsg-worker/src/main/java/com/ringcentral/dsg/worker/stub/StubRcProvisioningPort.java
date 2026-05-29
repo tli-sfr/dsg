@@ -1,20 +1,37 @@
 package com.ringcentral.dsg.worker.stub;
 
 import com.ringcentral.dsg.directory.DirectoryUser;
+import com.ringcentral.dsg.provisioning.ProductLicense;
 import com.ringcentral.dsg.provisioning.ProvisioningResult;
 import com.ringcentral.dsg.provisioning.RcProvisioningPort;
 
 public class StubRcProvisioningPort implements RcProvisioningPort {
 
     @Override
-    public ProvisioningResult createExtension(String accountId, DirectoryUser directoryUser) {
-        String mailboxId = "mbx-" + directoryUser.externalId();
+    public ProvisioningResult provisionUser(
+            String accountId, DirectoryUser directoryUser, String primaryLicenseId) {
+        ProductLicense license = ProductLicense.fromLicenseId(primaryLicenseId);
+        String mailboxId = license.usesBulkAssignApi()
+                ? "bulk-" + directoryUser.externalId()
+                : "ext-" + directoryUser.externalId();
         long ruleBasedCount = directoryUser.attributes().keySet().stream()
                 .filter(key -> key.startsWith("rc."))
                 .count();
+        String api = license.usesExtensionCreateApi()
+                ? "Extensions/createExtension"
+                : "Extensions/bulk-assign";
         String message = ruleBasedCount > 0
-                ? "Stub extension created with " + ruleBasedCount + " rule-based attribute(s)"
-                : "Stub extension created";
+                ? "Stub " + api + " for " + license.label() + " with " + ruleBasedCount + " rule-based attribute(s)"
+                : "Stub " + api + " for " + license.label();
         return new ProvisioningResult(mailboxId, true, message);
+    }
+
+    @Override
+    public ProvisioningResult updateExtension(
+            String accountId, String rcUserId, DirectoryUser directoryUser) {
+        return new ProvisioningResult(
+                rcUserId,
+                true,
+                "Stub User-Settings/updateExtension for " + directoryUser.email());
     }
 }

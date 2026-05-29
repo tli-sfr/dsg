@@ -26,7 +26,9 @@ Planning and documentation for Directory Integration 2.0 / Directory Sync Servic
 docker compose up -d
 mvn install -pl dsg-api -am -DskipTests
 ./scripts/dev-stop.sh   # if you see "Port 8080 was already in use"
-mvn -pl dsg-api spring-boot:run
+mvn -pl dsg-api spring-boot:run -Dspring-boot.run.profiles=local
+# Do NOT combine `-am` with `spring-boot:run` — that runs the goal on dsg-parent and fails.
+# Use `-am` only on `install`/`compile`; run the app on dsg-api alone (after install).
 ```
 
 API base: `http://localhost:8080/dsg/v1/{accountId}/...`

@@ -7,6 +7,7 @@ import type {
   JobReportResponse,
   JobSummary,
   JobType,
+  ProvisioningRuleDetail,
   ProvisioningRuleSummary,
 } from './types';
 
@@ -18,6 +19,7 @@ async function request<T>(
   init?: RequestInit,
 ): Promise<T> {
   const response = await fetch(`${API_BASE}/${accountId}${path}`, {
+    credentials: 'include',
     headers: { 'Content-Type': 'application/json', ...init?.headers },
     ...init,
   });
@@ -129,9 +131,18 @@ export const api = {
   listRules: (accountId: string) =>
     request<{ rules: ProvisioningRuleSummary[] }>(accountId, '/rules'),
 
+  getRule: (accountId: string, ruleId: string) =>
+    request<ProvisioningRuleDetail>(accountId, `/rules/${ruleId}`),
+
   createRule: (accountId: string, body: unknown) =>
     request<void>(accountId, '/rule', {
       method: 'POST',
+      body: JSON.stringify(body),
+    }),
+
+  updateRule: (accountId: string, ruleId: string, body: unknown) =>
+    request<void>(accountId, `/rule/${ruleId}`, {
+      method: 'PUT',
       body: JSON.stringify(body),
     }),
 

@@ -29,17 +29,17 @@ public class RcOAuthClient {
         body.add("grant_type", "authorization_code");
         body.add("code", code);
         body.add("redirect_uri", redirectUri);
-        return postToken(body);
+        return postToken("authorization_code", body);
     }
 
     public RcTokenResponse refreshAccessToken(String refreshToken) {
         MultiValueMap<String, String> body = new LinkedMultiValueMap<>();
         body.add("grant_type", "refresh_token");
         body.add("refresh_token", refreshToken);
-        return postToken(body);
+        return postToken("refresh_token", body);
     }
 
-    private RcTokenResponse postToken(MultiValueMap<String, String> body) {
+    private RcTokenResponse postToken(String grantType, MultiValueMap<String, String> body) {
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_FORM_URLENCODED);
         headers.set(HttpHeaders.AUTHORIZATION, basicAuthHeader());
@@ -52,18 +52,21 @@ public class RcOAuthClient {
             String rcBody = ex.getResponseBodyAsString();
             throw new IllegalStateException(
                     "RingCentral token request failed (" + ex.getStatusCode().value() + "): "
-                            + summarizeRcError(rcBody),
+                            + summarizeRcError(grantType, rcBody),
                     ex);
         } catch (RestClientException ex) {
             throw new IllegalStateException("RingCentral token request failed: " + ex.getMessage(), ex);
         }
     }
 
-    private static String summarizeRcError(String rcBody) {
+    private static String summarizeRcError(String grantType, String rcBody) {
         if (rcBody == null || rcBody.isBlank()) {
             return "empty response body";
         }
         if (rcBody.contains("invalid_grant")) {
+            if ("refresh_token".equals(grantType)) {
+                return "invalid_grant — refresh token expired or revoked; sign in to RingCentral again";
+            }
             return "invalid_grant — authorization code expired, already used, or redirect URI mismatch "
                     + "(ensure dsg.rc.redirect-uri exactly matches your RC app registration)";
         }

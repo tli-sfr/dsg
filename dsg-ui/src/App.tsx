@@ -36,6 +36,7 @@ export default function App() {
           <Route path="/directory-integration" element={<DashboardPage />} />
           <Route path="/directory-integration/configuration" element={<DirectoryConfigurationPage />} />
           <Route path="/directory-integration/rules/new" element={<RuleFormPage />} />
+          <Route path="/directory-integration/rules/:ruleId" element={<RuleFormPage />} />
           <Route path="/directory-integration/oauth/callback" element={<DirectoryOAuthCallbackPage />} />
           <Route path="/oauth/callback" element={<OAuthCallbackPage />} />
           <Route path="/mobile/oauthredirect" element={<OAuthCallbackPage />} />

@@ -248,6 +248,7 @@ export function DashboardPage() {
               <th className="py-2">Priority</th>
               <th>Name</th>
               <th>Conditions</th>
+              <th className="py-2 text-right">Actions</th>
             </tr>
           </thead>
           <tbody>
@@ -258,11 +259,19 @@ export function DashboardPage() {
                 <td className="text-slate-600">
                   {formatSelectionExpression(r.selectionExpression)}
                 </td>
+                <td className="py-2 text-right">
+                  <Link
+                    to={`/directory-integration/rules/${r.ruleId}?accountId=${accountId}`}
+                    className="text-xs text-rc-orange hover:underline"
+                  >
+                    Edit
+                  </Link>
+                </td>
               </tr>
             ))}
             {rules.length === 0 && (
               <tr>
-                <td colSpan={3} className="py-4 text-slate-500">
+                <td colSpan={4} className="py-4 text-slate-500">
                   No rules configured.
                 </td>
               </tr>

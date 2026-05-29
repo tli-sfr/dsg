@@ -1,5 +1,7 @@
 package com.ringcentral.dsg.api.controller;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.ringcentral.dsg.api.support.AbstractApiIntegrationTest;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -67,10 +69,19 @@ class ConfigurationReadIT extends AbstractApiIntegrationTest {
                                 """))
                 .andExpect(status().isCreated());
 
-        mockMvc.perform(get("/dsg/v1/" + ACCOUNT + "/rules"))
+        var listResult = mockMvc.perform(get("/dsg/v1/" + ACCOUNT + "/rules"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.rules.length()").value(1))
-                .andExpect(jsonPath("$.rules[0].ruleName").value("Sales"));
+                .andExpect(jsonPath("$.rules[0].ruleName").value("Sales"))
+                .andReturn();
+
+        JsonNode rules = new ObjectMapper().readTree(listResult.getResponse().getContentAsString()).get("rules");
+        String ruleId = rules.get(0).get("ruleId").asText();
+
+        mockMvc.perform(get("/dsg/v1/" + ACCOUNT + "/rules/" + ruleId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.ruleName").value("Sales"))
+                .andExpect(jsonPath("$.licenseAssignments[0].licenseId").value("RingEX"));
 
         mockMvc.perform(get("/dsg/v1/" + ACCOUNT + "/deprovisioning"))
                 .andExpect(status().isOk())

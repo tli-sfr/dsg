@@ -2,6 +2,7 @@ package com.ringcentral.dsg.worker.service;
 
 import com.ringcentral.dsg.directory.DirectoryPort;
 import com.ringcentral.dsg.directory.DirectoryUser;
+import com.ringcentral.dsg.mapping.DirectorySyncTrace;
 import com.ringcentral.dsg.messaging.JobDetailMessage;
 import com.ringcentral.dsg.messaging.JobMessage;
 import com.ringcentral.dsg.messaging.MessageQueuePort;
@@ -12,8 +13,14 @@ import com.ringcentral.dsg.persistence.repo.AccountDirectoryAuthRepository;
 import com.ringcentral.dsg.persistence.repo.JobDetailRepository;
 import com.ringcentral.dsg.persistence.repo.JobRepository;
 import com.ringcentral.dsg.persistence.repo.ProvisioningRuleRepository;
+import com.ringcentral.dsg.persistence.tx.AfterCommitRunner;
 import com.ringcentral.dsg.rules.ProvisioningRuleMatch;
 import com.ringcentral.dsg.rules.ProvisioningRuleSelector;
+import com.ringcentral.dsg.worker.mapping.AccountAttributeMappingResolver;
+import com.ringcentral.dsg.worker.sync.SyncOperation;
+import com.ringcentral.dsg.worker.sync.SyncOperationPlan;
+import com.ringcentral.dsg.worker.sync.SyncOperationPlanner;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import org.slf4j.Logger;
@@ -32,6 +39,9 @@ public class JobRetrievalService {
     private final ProvisioningRuleRepository provisioningRuleRepository;
     private final DirectoryPort directoryPort;
     private final MessageQueuePort messageQueuePort;
+    private final AccountAttributeMappingResolver attributeMappingResolver;
+    private final SyncOperationPlanner syncOperationPlanner;
+    private final JobConsolidatorService consolidatorService;
 
     public JobRetrievalService(
             JobRepository jobRepository,
@@ -39,13 +49,19 @@ public class JobRetrievalService {
             AccountDirectoryAuthRepository authRepository,
             ProvisioningRuleRepository provisioningRuleRepository,
             DirectoryPort directoryPort,
-            MessageQueuePort messageQueuePort) {
+            MessageQueuePort messageQueuePort,
+            AccountAttributeMappingResolver attributeMappingResolver,
+            SyncOperationPlanner syncOperationPlanner,
+            JobConsolidatorService consolidatorService) {
         this.jobRepository = jobRepository;
         this.jobDetailRepository = jobDetailRepository;
         this.authRepository = authRepository;
         this.provisioningRuleRepository = provisioningRuleRepository;
         this.directoryPort = directoryPort;
         this.messageQueuePort = messageQueuePort;
+        this.attributeMappingResolver = attributeMappingResolver;
+        this.syncOperationPlanner = syncOperationPlanner;
+        this.consolidatorService = consolidatorService;
     }
 
     @Transactional
@@ -65,35 +81,83 @@ public class JobRetrievalService {
                 .orElseThrow(() -> new IllegalStateException("Directory auth missing for account " + message.accountId()));
 
         String groupId = auth.directoryGroupId() != null ? auth.directoryGroupId() : "default-group";
-        var members = directoryPort.listGroupMembers(message.accountId(), groupId);
+        List<DirectoryUser> members = directoryPort.listGroupMembers(message.accountId(), groupId);
+        log.info("[DSG sync:retrieve] account={} groupId={} directoryUsers={}", message.accountId(), groupId, members.size());
+        for (DirectoryUser member : members) {
+            DirectorySyncTrace.logDirectoryUser("retrieve", message.accountId(), member);
+        }
         List<ProvisioningRuleMatch> rules = provisioningRuleRepository.listByAccountOrderByPriority(message.accountId())
                 .stream()
                 .map(this::toMatch)
                 .toList();
 
+        var mappings = attributeMappingResolver.listForAccount(message.accountId());
         int detailCount = 0;
+        int unchangedCount = 0;
+        List<JobDetailMessage> detailMessages = new ArrayList<>();
         for (DirectoryUser user : members) {
             Optional<ProvisioningRuleMatch> matchedRule = ProvisioningRuleSelector.selectFirstMatch(rules, user);
             if (matchedRule.isEmpty()) {
-                log.debug("Skipping user {} — no provisioning rule matched", user.externalId());
+                log.info("Skipping user {} — no provisioning rule matched", user.externalId());
                 continue;
             }
             long ruleId = matchedRule.get().ruleId();
-            long detailId = jobDetailRepository.insertPendingCreate(jobId, user.externalId(), ruleId);
-            messageQueuePort.publishJobDetail(new JobDetailMessage(
+            SyncOperationPlan plan = syncOperationPlanner.plan(
+                    message.accountId(), auth.directoryTypeId(), user, mappings);
+
+            if (plan.operation() == SyncOperation.UNCHANGED) {
+                unchangedCount++;
+                continue;
+            }
+
+            long detailId;
+            String operation;
+            if (plan.operation() == SyncOperation.CREATE) {
+                detailId = jobDetailRepository.insertPendingCreate(jobId, user.externalId(), ruleId);
+                operation = "CREATE";
+            } else {
+                detailId = jobDetailRepository.insertPendingUpdate(jobId, user.externalId(), plan.mailboxId());
+                operation = "UPDATE";
+            }
+
+            JobDetailMessage detailMessage = new JobDetailMessage(
                     Long.toString(detailId),
                     message.jobId(),
                     message.accountId(),
                     user.externalId(),
-                    "CREATE",
-                    Long.toString(ruleId),
-                    user.email(),
-                    user.attributes()));
+                    operation,
+                    plan.operation() == SyncOperation.CREATE ? Long.toString(ruleId) : null,
+                    plan.mappedUser().email(),
+                    user.attributes(),
+                    plan.mailboxId());
+            detailMessages.add(detailMessage);
+            log.info(
+                    "Job {} enqueued job detail {} operation={} externalId={} email={}",
+                    jobId,
+                    detailId,
+                    operation,
+                    user.externalId(),
+                    plan.mappedUser().email());
             detailCount++;
         }
 
         jobRepository.updateJobState(jobId, "READY");
-        log.info("Job {} prepared {} job details from {} directory users", jobId, detailCount, members.size());
+        log.info(
+                "Job {} prepared {} job details ({} unchanged) from {} directory users",
+                jobId,
+                detailCount,
+                unchangedCount,
+                members.size());
+
+        if (!detailMessages.isEmpty()) {
+            AfterCommitRunner.run(() -> {
+                for (JobDetailMessage detailMessage : detailMessages) {
+                    messageQueuePort.publishJobDetail(detailMessage);
+                }
+            });
+        } else {
+            consolidatorService.consolidateIfComplete(jobId);
+        }
     }
 
     private ProvisioningRuleMatch toMatch(ProvisioningRuleRecord record) {

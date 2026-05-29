@@ -1,6 +1,9 @@
 spring:
   application:
     name: dsg-backend
+  # Loads src/main/resources/application-local.yml when present (gitignored) — no need for -Dspring-boot.run.profiles=local
+  config:
+    import: optional:classpath:application-local.yml
   datasource:
     url: jdbc:mysql://localhost:3307/dsb
     username: dsg
@@ -10,6 +13,9 @@ spring:
     locations: classpath:db/migration
 
 dsg:
+  directory:
+    # false = load group members from Okta API; true = in-memory stub (integration tests)
+    stub: false
   crypto:
     secret-key: local-dev-only-change-me
   app:
@@ -26,7 +32,8 @@ dsg:
     secret-access-key: x
     job-queue-name: dsg-job-queue
     job-detail-queue-name: dsg-job-detail-queue
-    wait-time-seconds: 1
+    max-number-of-messages: 10
+    wait-time-seconds: 0
     listener:
       enabled: true
       poll-interval-ms: 1000
