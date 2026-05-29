@@ -1,6 +1,6 @@
 import { Link } from 'react-router-dom';
-import { Play, Plus, RefreshCw } from 'lucide-react';
-import { useCallback, useEffect, useState } from 'react';
+import { Plus, RefreshCw } from 'lucide-react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { api } from '../api/client';
 import type {
   DeprovisioningType,
@@ -13,31 +13,64 @@ import { useAccountId } from '../components/AccountBar';
 import { Card } from '../components/Card';
 import { formatInstant, formatSelectionExpression } from '../lib/format';
 
+const TERMINAL_JOB_STATES = new Set(['COMPLETED', 'SUCCEEDED', 'FAILED', 'CANCELLED', 'STUCK']);
+
+function isJobFinished(state: string, completedAt: string | null): boolean {
+  return TERMINAL_JOB_STATES.has(state) || completedAt != null;
+}
+
 export function DashboardPage() {
   const accountId = useAccountId();
   const [directory, setDirectory] = useState<DirectoryResponse | null>(null);
   const [latestReport, setLatestReport] = useState<JobReportResponse | null>(null);
   const [rules, setRules] = useState<ProvisioningRuleSummary[]>([]);
   const [deprovisionType, setDeprovisionType] = useState<DeprovisioningType>('FULL_DELETE');
-  const [groupId, setGroupId] = useState('');
-  const [cron, setCron] = useState('0 0 2 * * ?');
+  const [fullSyncJobId, setFullSyncJobId] = useState<string | null>(null);
+  const [fullSyncStatus, setFullSyncStatus] = useState<'idle' | 'in_progress' | 'finished'>('idle');
+  const [fullSyncFinishedAt, setFullSyncFinishedAt] = useState<string | null>(null);
+  const [checkingFullSync, setCheckingFullSync] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const fullSyncStatusRef = useRef(fullSyncStatus);
+  fullSyncStatusRef.current = fullSyncStatus;
 
   const refresh = useCallback(async () => {
     setError(null);
     try {
-      const [dir, report, ruleList, deprov] = await Promise.all([
+      const [dir, report, ruleList, deprov, jobHistory] = await Promise.all([
         api.getDirectory(accountId).catch(() => null),
         api.getLatestReport(accountId).catch(() => null),
         api.listRules(accountId),
         api.getDeprovisioning(accountId),
+        api.listJobs(accountId, 10).catch(() => ({ jobs: [] })),
       ]);
       setDirectory(dir);
       setLatestReport(report);
       setRules(ruleList.rules);
       setDeprovisionType(deprov.deprovisioningType);
-      if (dir?.directoryGroupId) setGroupId(dir.directoryGroupId);
+
+      const activeFullSync = jobHistory.jobs.find(
+        (job) => job.jobType === 'FULL' && !isJobFinished(job.state, job.completedAt),
+      );
+      if (activeFullSync) {
+        setFullSyncJobId(activeFullSync.jobId);
+        setFullSyncStatus('in_progress');
+        setFullSyncFinishedAt(null);
+      } else {
+        const latestFullSync = jobHistory.jobs.find((job) => job.jobType === 'FULL');
+        if (
+          latestFullSync &&
+          isJobFinished(latestFullSync.state, latestFullSync.completedAt)
+        ) {
+          setFullSyncJobId(latestFullSync.jobId);
+          setFullSyncStatus('finished');
+          setFullSyncFinishedAt(latestFullSync.completedAt ?? latestFullSync.startedAt);
+        } else if (fullSyncStatusRef.current !== 'in_progress') {
+          setFullSyncJobId(null);
+          setFullSyncStatus('idle');
+          setFullSyncFinishedAt(null);
+        }
+      }
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to load');
     }
@@ -47,15 +80,34 @@ export function DashboardPage() {
     refresh();
   }, [refresh]);
 
-  async function runJob(jobType: 'FULL' | 'INCREMENTAL') {
+  async function runFullSync() {
     setMessage(null);
     setError(null);
     try {
-      const job = await api.createJob(accountId, jobType);
-      setMessage(`Job ${job.jobId} accepted (${job.state})`);
-      setTimeout(refresh, 1500);
+      const job = await api.createJob(accountId, 'FULL');
+      setFullSyncJobId(job.jobId);
+      setFullSyncStatus('in_progress');
+      setFullSyncFinishedAt(null);
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Job failed');
+      setError(e instanceof Error ? e.message : 'Full sync failed');
+    }
+  }
+
+  async function checkFullSyncStatus() {
+    if (!fullSyncJobId) return;
+    setCheckingFullSync(true);
+    setError(null);
+    try {
+      const report = await api.getJobReport(accountId, fullSyncJobId);
+      if (isJobFinished(report.state, report.completedAt)) {
+        setFullSyncStatus('finished');
+        setFullSyncFinishedAt(report.completedAt ?? report.startedAt);
+        setLatestReport(report);
+      }
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to check sync status');
+    } finally {
+      setCheckingFullSync(false);
     }
   }
 
@@ -138,59 +190,37 @@ export function DashboardPage() {
       <Card
         title="Synchronization"
         action={
-          <div className="flex gap-2">
+          <div className="flex flex-col items-end gap-1">
             <button
               type="button"
-              onClick={() => runJob('INCREMENTAL')}
-              className="inline-flex items-center gap-1 rounded bg-rc-orange px-3 py-1 text-xs font-medium text-white"
-            >
-              <Play className="h-3 w-3" />
-              Incremental
-            </button>
-            <button
-              type="button"
-              onClick={() => runJob('FULL')}
-              className="inline-flex items-center gap-1 rounded border border-rc-orange px-3 py-1 text-xs font-medium text-rc-orange"
+              onClick={runFullSync}
+              disabled={fullSyncStatus === 'in_progress'}
+              className="inline-flex items-center gap-1 rounded border border-rc-orange px-3 py-1 text-xs font-medium text-rc-orange transition-colors hover:bg-rc-orange hover:text-white disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-transparent disabled:hover:text-rc-orange"
             >
               Full sync
             </button>
+            {fullSyncStatus === 'in_progress' && (
+              <div className="flex items-center gap-1 text-xs text-slate-500">
+                <span>In progress</span>
+                <button
+                  type="button"
+                  onClick={checkFullSyncStatus}
+                  disabled={checkingFullSync}
+                  aria-label="Check sync status"
+                  className="rounded p-0.5 text-slate-500 hover:bg-slate-100 hover:text-rc-navy disabled:opacity-50"
+                >
+                  <RefreshCw className={`h-3.5 w-3.5 ${checkingFullSync ? 'animate-spin' : ''}`} />
+                </button>
+              </div>
+            )}
+            {fullSyncStatus === 'finished' && fullSyncFinishedAt && (
+              <p className="text-xs text-slate-500">
+                Finished at {formatInstant(fullSyncFinishedAt)}
+              </p>
+            )}
           </div>
         }
-      >
-        <div className="flex flex-wrap gap-4">
-          <label className="text-sm">
-            Group ID
-            <input
-              className="ml-2 rounded border border-slate-300 px-2 py-1"
-              value={groupId}
-              onChange={(e) => setGroupId(e.target.value)}
-            />
-          </label>
-          <label className="text-sm">
-            Cron
-            <input
-              className="ml-2 rounded border border-slate-300 px-2 py-1"
-              value={cron}
-              onChange={(e) => setCron(e.target.value)}
-            />
-          </label>
-          <button
-            type="button"
-            className="self-end rounded border border-slate-300 px-3 py-1 text-sm"
-            onClick={async () => {
-              await api.updateDirectory(accountId, { directoryGroupId: groupId, active: true });
-              await api.configureScheduler(accountId, {
-                incrementalEnabled: true,
-                cronExpression: cron,
-                syncDirection: 'DIR_TO_RC',
-              });
-              setMessage('Scheduler and directory updated');
-            }}
-          >
-            Save sync settings
-          </button>
-        </div>
-      </Card>
+      />
 
       <Card
         title="Rule based automation"
