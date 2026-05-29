@@ -1,5 +1,6 @@
 package com.ringcentral.dsg.persistence.repo;
 
+import com.ringcentral.dsg.persistence.model.PendingJobDetailRow;
 import org.springframework.dao.EmptyResultDataAccessException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.support.GeneratedKeyHolder;
@@ -7,6 +8,7 @@ import org.springframework.stereotype.Repository;
 
 import java.sql.PreparedStatement;
 import java.sql.Statement;
+import java.util.List;
 import java.util.Optional;
 
 @Repository
@@ -19,20 +21,34 @@ public class JobDetailRepository {
     }
 
     public long insertPendingCreate(long jobId, String externalId, Long ruleId) {
+        return insertPending(jobId, externalId, 1, ruleId, null);
+    }
+
+    public long insertPendingUpdate(long jobId, String externalId, String mailboxId) {
+        return insertPending(jobId, externalId, 2, null, mailboxId);
+    }
+
+    private long insertPending(long jobId, String externalId, int operationId, Long ruleId, String mailboxId) {
         GeneratedKeyHolder keyHolder = new GeneratedKeyHolder();
         jdbcTemplate.update(connection -> {
             PreparedStatement ps = connection.prepareStatement(
                     """
-                            INSERT INTO job_detail (job_id, external_id, state_id, operation_id, rule_id)
-                            VALUES (?, ?, 1, 1, ?)
+                            INSERT INTO job_detail (job_id, external_id, state_id, operation_id, rule_id, mailbox_id)
+                            VALUES (?, ?, 1, ?, ?, ?)
                             """,
                     Statement.RETURN_GENERATED_KEYS);
             ps.setLong(1, jobId);
             ps.setString(2, externalId);
+            ps.setInt(3, operationId);
             if (ruleId != null) {
-                ps.setLong(3, ruleId);
+                ps.setLong(4, ruleId);
             } else {
-                ps.setNull(3, java.sql.Types.BIGINT);
+                ps.setNull(4, java.sql.Types.BIGINT);
+            }
+            if (mailboxId != null) {
+                ps.setString(5, mailboxId);
+            } else {
+                ps.setNull(5, java.sql.Types.VARCHAR);
             }
             return ps;
         }, keyHolder);
@@ -64,5 +80,29 @@ public class JobDetailRepository {
         } catch (EmptyResultDataAccessException ex) {
             return Optional.empty();
         }
+    }
+
+    /** Job details still PENDING while parent job is READY (queue message may have been lost). */
+    public List<PendingJobDetailRow> listPendingDetailsForReadyJobs() {
+        return jdbcTemplate.query(
+                """
+                        SELECT jd.id, jd.job_id, j.account_id, jd.external_id, jd.rule_id,
+                               jd.mailbox_id, ot.type AS operation
+                        FROM job_detail jd
+                        JOIN job j ON j.id = jd.job_id
+                        JOIN job_state js ON js.id = j.state_id
+                        JOIN job_state ds ON ds.id = jd.state_id
+                        JOIN operation_type ot ON ot.id = jd.operation_id
+                        WHERE js.state = 'READY' AND ds.state = 'PENDING'
+                        ORDER BY jd.id
+                        """,
+                (rs, rowNum) -> new PendingJobDetailRow(
+                        rs.getLong("id"),
+                        rs.getLong("job_id"),
+                        rs.getString("account_id"),
+                        rs.getString("external_id"),
+                        rs.getObject("rule_id") != null ? rs.getLong("rule_id") : null,
+                        rs.getString("operation"),
+                        rs.getString("mailbox_id")));
     }
 }

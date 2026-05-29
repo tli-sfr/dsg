@@ -25,12 +25,19 @@ public class StubDirectoryPort implements DirectoryPort {
                 testUser(accountId, "user-2", "Engineering", group));
     }
 
-    /** Attributes only — no fabricated names/emails; IT supplies profile.* when exercising mapping. */
     private static DirectoryUser testUser(
             String accountId, String suffix, String department, String group) {
+        String externalId = accountId + "-" + suffix;
+        boolean first = "user-1".equals(suffix);
         return new DirectoryUser(
-                accountId + "-" + suffix,
-                null,
-                Map.of("department", department, "profile.department", department, "group", group));
+                externalId,
+                externalId + "@dsg-sync.dev",
+                Map.of(
+                        "department", department,
+                        "profile.department", department,
+                        "profile.firstName", first ? "Alex" : "Jordan",
+                        "profile.lastName", first ? "Morgan" : "Kim",
+                        "profile.email", externalId + "@dsg-sync.dev",
+                        "group", group));
     }
 }

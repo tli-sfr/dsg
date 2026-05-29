@@ -65,6 +65,21 @@ public final class DirectorySyncTrace {
                 rcFields);
     }
 
+    public static void logRcProvisionResponse(
+            String accountId, String operation, String rawBody, String extensionId, Boolean successful) {
+        log.info(
+                "[DSG sync:rc-api] account={} operation={} response={}",
+                accountId,
+                operation,
+                rawBody);
+        log.info(
+                "[DSG sync:rc-api] account={} operation={} parsed successful={} extensionId={}",
+                accountId,
+                operation,
+                successful,
+                extensionId);
+    }
+
     private static Map<String, String> rcProvisioningFields(Map<String, String> attributes) {
         return attributes.entrySet().stream()
                 .filter(e -> !e.getKey().startsWith("rc.") && !e.getKey().startsWith("profile."))

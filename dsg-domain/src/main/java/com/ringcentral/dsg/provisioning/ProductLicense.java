@@ -34,8 +34,14 @@ public enum ProductLicense {
         return this == VIDEO_PRO || this == VIDEO_PRO_PLUS;
     }
 
-    public boolean usesScimApi() {
+    /** RingEX provisions via Extensions bulk-assign (not SCIM). */
+    public boolean usesBulkAssignApi() {
         return this == RING_EX;
+    }
+
+    @Deprecated
+    public boolean usesScimApi() {
+        return false;
     }
 
     public static ProductLicense fromLicenseId(String licenseId) {

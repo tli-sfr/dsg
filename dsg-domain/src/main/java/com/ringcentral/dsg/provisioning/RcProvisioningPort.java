@@ -6,7 +6,7 @@ import com.ringcentral.dsg.directory.DirectoryUser;
  * RingCentral provisioning port (ADR-007).
  *
  * @see <a href="https://developers.ringcentral.com/api-reference/Extensions/createExtension">createExtension</a>
- * @see <a href="https://developers.ringcentral.com/api-reference/SCIM/scimGetUser2">SCIM Users</a>
+ * @see <a href="https://developers.ringcentral.com/api-reference/Extensions/bulkAssignExtensions">bulkAssignExtensions</a>
  * @see <a href="https://developers.ringcentral.com/api-reference/User-Settings/updateExtension">updateExtension</a>
  */
 public interface RcProvisioningPort {

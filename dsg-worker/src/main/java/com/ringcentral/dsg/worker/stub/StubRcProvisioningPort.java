@@ -11,15 +11,15 @@ public class StubRcProvisioningPort implements RcProvisioningPort {
     public ProvisioningResult provisionUser(
             String accountId, DirectoryUser directoryUser, String primaryLicenseId) {
         ProductLicense license = ProductLicense.fromLicenseId(primaryLicenseId);
-        String mailboxId = license.usesScimApi()
-                ? "scim-" + directoryUser.externalId()
+        String mailboxId = license.usesBulkAssignApi()
+                ? "bulk-" + directoryUser.externalId()
                 : "ext-" + directoryUser.externalId();
         long ruleBasedCount = directoryUser.attributes().keySet().stream()
                 .filter(key -> key.startsWith("rc."))
                 .count();
         String api = license.usesExtensionCreateApi()
                 ? "Extensions/createExtension"
-                : "SCIM (create + scimGetUser2)";
+                : "Extensions/bulk-assign";
         String message = ruleBasedCount > 0
                 ? "Stub " + api + " for " + license.label() + " with " + ruleBasedCount + " rule-based attribute(s)"
                 : "Stub " + api + " for " + license.label();

@@ -32,7 +32,8 @@ dsg:
     secret-access-key: x
     job-queue-name: dsg-job-queue
     job-detail-queue-name: dsg-job-detail-queue
-    wait-time-seconds: 1
+    max-number-of-messages: 10
+    wait-time-seconds: 0
     listener:
       enabled: true
       poll-interval-ms: 1000

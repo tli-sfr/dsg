@@ -9,6 +9,8 @@ import com.ringcentral.dsg.messaging.ReceivedMessage;
 import com.ringcentral.dsg.messaging.config.MessagingProperties;
 import java.net.URI;
 import java.time.Duration;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
@@ -20,8 +22,10 @@ import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.sqs.SqsClient;
 import software.amazon.awssdk.services.sqs.SqsClientBuilder;
 import software.amazon.awssdk.services.sqs.model.DeleteMessageRequest;
+import software.amazon.awssdk.services.sqs.model.GetQueueAttributesRequest;
 import software.amazon.awssdk.services.sqs.model.GetQueueUrlRequest;
 import software.amazon.awssdk.services.sqs.model.Message;
+import software.amazon.awssdk.services.sqs.model.QueueAttributeName;
 import software.amazon.awssdk.services.sqs.model.ReceiveMessageRequest;
 import software.amazon.awssdk.services.sqs.model.SendMessageRequest;
 
@@ -42,11 +46,12 @@ public class SqsMessageQueuePort implements MessageQueuePort, AutoCloseable {
     this.objectMapper = objectMapper;
     this.sqsClient = buildClient(properties);
     log.info(
-        "SQS client ready (local={} endpoint={} jobQueue={} detailQueue={})",
+        "SQS client ready (local={} endpoint={} jobQueue={} detailQueue={} maxBatch={})",
         properties.isLocalEndpoint(),
         properties.endpoint(),
         properties.jobQueueName(),
-        properties.jobDetailQueueName());
+        properties.jobDetailQueueName(),
+        properties.maxNumberOfMessages());
   }
 
   @Override
@@ -57,6 +62,13 @@ public class SqsMessageQueuePort implements MessageQueuePort, AutoCloseable {
   @Override
   public void publishJobDetail(JobDetailMessage message) {
     send(properties.jobDetailQueueName(), message);
+    log.info(
+        "[DSG queue:publish-detail] jobDetailId={} jobId={} externalId={} email={}",
+        message.jobDetailId(),
+        message.jobId(),
+        message.externalId(),
+        message.email());
+    logDetailQueueStats("after-publish");
   }
 
   @Override
@@ -66,7 +78,13 @@ public class SqsMessageQueuePort implements MessageQueuePort, AutoCloseable {
 
   @Override
   public Optional<ReceivedMessage<JobDetailMessage>> receiveJobDetail(Duration waitTime) {
-    return receive(properties.jobDetailQueueName(), JobDetailMessage.class, waitTime);
+    return receiveAll(properties.jobDetailQueueName(), JobDetailMessage.class, waitTime).stream()
+        .findFirst();
+  }
+
+  @Override
+  public List<ReceivedMessage<JobDetailMessage>> receiveJobDetails(Duration waitTime) {
+    return receiveAll(properties.jobDetailQueueName(), JobDetailMessage.class, waitTime);
   }
 
   @Override
@@ -76,7 +94,14 @@ public class SqsMessageQueuePort implements MessageQueuePort, AutoCloseable {
 
   @Override
   public void acknowledgeJobDetail(ReceivedMessage<JobDetailMessage> message) {
+    JobDetailMessage payload = message.payload();
     delete(properties.jobDetailQueueName(), message.receiptHandle());
+    log.info(
+        "[DSG queue:ack-detail] jobDetailId={} externalId={} email={}",
+        payload.jobDetailId(),
+        payload.externalId(),
+        payload.email());
+    logDetailQueueStats("after-ack");
   }
 
   @Override
@@ -96,25 +121,63 @@ public class SqsMessageQueuePort implements MessageQueuePort, AutoCloseable {
 
   private <T> Optional<ReceivedMessage<T>> receive(
       String queueName, Class<T> type, Duration waitTime) {
-    int waitSeconds = (int) Math.min(Math.max(waitTime.getSeconds(), 0), 20);
+    return receiveAll(queueName, type, waitTime).stream().findFirst();
+  }
+
+  private <T> List<ReceivedMessage<T>> receiveAll(
+      String queueName, Class<T> type, Duration waitTime) {
+    int waitSeconds = resolveWaitSeconds(waitTime);
     ReceiveMessageRequest request =
         ReceiveMessageRequest.builder()
             .queueUrl(queueUrl(queueName))
             .maxNumberOfMessages(properties.maxNumberOfMessages())
-            .waitTimeSeconds(waitSeconds > 0 ? waitSeconds : properties.waitTimeSeconds())
+            .waitTimeSeconds(waitSeconds)
             .build();
 
     var response = sqsClient.receiveMessage(request);
     if (response.messages().isEmpty()) {
-      return Optional.empty();
+      if (properties.jobDetailQueueName().equals(queueName)) {
+        logDetailQueueStats("receive-empty");
+      }
+      return List.of();
     }
-    Message raw = response.messages().get(0);
-    try {
-      T payload = objectMapper.readValue(raw.body(), type);
-      return Optional.of(new ReceivedMessage<>(payload, raw.receiptHandle(), raw.messageId()));
-    } catch (JsonProcessingException e) {
-      throw new IllegalStateException("Failed to deserialize queue message", e);
+    List<ReceivedMessage<T>> received = new ArrayList<>(response.messages().size());
+    for (Message raw : response.messages()) {
+      try {
+        T payload = objectMapper.readValue(raw.body(), type);
+        received.add(new ReceivedMessage<>(payload, raw.receiptHandle(), raw.messageId()));
+      } catch (JsonProcessingException e) {
+        throw new IllegalStateException("Failed to deserialize queue message", e);
+      }
     }
+    if (properties.jobDetailQueueName().equals(queueName) && type == JobDetailMessage.class) {
+      String ids = received.stream()
+          .map(msg -> ((JobDetailMessage) msg.payload()).jobDetailId())
+          .reduce((a, b) -> a + "," + b)
+          .orElse("");
+      log.info(
+          "[DSG queue:receive-detail] waitSeconds={} requestedMax={} received={} jobDetailIds=[{}]",
+          waitSeconds,
+          properties.maxNumberOfMessages(),
+          received.size(),
+          ids);
+      logDetailQueueStats("after-receive");
+    }
+    return received;
+  }
+
+  private int resolveWaitSeconds(Duration waitTime) {
+    if (waitTime == null) {
+      return properties.waitTimeSeconds();
+    }
+    if (waitTime.isZero() || waitTime.isNegative()) {
+      return 0;
+    }
+    long seconds = waitTime.getSeconds();
+    if (seconds <= 0 && waitTime.toMillis() > 0) {
+      return 1;
+    }
+    return (int) Math.min(seconds, 20);
   }
 
   private void delete(String queueName, String receiptHandle) {
@@ -123,6 +186,26 @@ public class SqsMessageQueuePort implements MessageQueuePort, AutoCloseable {
             .queueUrl(queueUrl(queueName))
             .receiptHandle(receiptHandle)
             .build());
+  }
+
+  private void logDetailQueueStats(String event) {
+    try {
+      var attributes = sqsClient.getQueueAttributes(
+              GetQueueAttributesRequest.builder()
+                  .queueUrl(queueUrl(properties.jobDetailQueueName()))
+                  .attributeNames(
+                      QueueAttributeName.APPROXIMATE_NUMBER_OF_MESSAGES,
+                      QueueAttributeName.APPROXIMATE_NUMBER_OF_MESSAGES_NOT_VISIBLE)
+                  .build())
+          .attributes();
+      log.info(
+          "[DSG queue:stats-detail] event={} visible={} inFlight={}",
+          event,
+          attributes.get(QueueAttributeName.APPROXIMATE_NUMBER_OF_MESSAGES),
+          attributes.get(QueueAttributeName.APPROXIMATE_NUMBER_OF_MESSAGES_NOT_VISIBLE));
+    } catch (RuntimeException ex) {
+      log.debug("Failed to read detail queue stats for event={}", event, ex);
+    }
   }
 
   private String queueUrl(String queueName) {

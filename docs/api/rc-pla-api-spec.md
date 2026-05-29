@@ -53,6 +53,78 @@ Content-Type: application/json
 
 ---
 
+### Bulk-assign extension (RingEX provision)
+
+Used for **RingEX** primary license instead of SCIM ([bulkAssignExtensions](https://developers.ringcentral.com/api-reference/Extensions/bulkAssignExtensions)).
+
+```http
+POST /account/{accountId}/extension/bulk-assign
+Content-Type: application/json
+```
+
+**Request body** (single user per sync job):
+
+```json
+{
+  "items": [
+    {
+      "extension": {
+        "contact": {
+          "firstName": "rc20",
+          "lastName": "user1",
+          "email": "rc20.user1@testorg.com",
+          "department": "Sales",
+          "mobilePhone": "+16507810271",
+          "businessAddress": {
+            "street": "123",
+            "city": "San Mateo",
+            "state": "CA",
+            "zip": "94404",
+            "country": "US"
+          }
+        },
+        "references": [
+          { "type": "CustomerDirectoryId", "ref": "00u1gr9kuopuehtYz1d8" }
+        ]
+      }
+    }
+  ]
+}
+```
+
+**DSG mapping:**
+
+| RC field | Source |
+|----------|--------|
+| `contact.*` | Mapped RC attributes (`firstName`, `lastName`, `email`, `department`, `mobilePhone`, `street`, `city`, `state`, `zip`, `country`) |
+| `extension.references[0].ref` | Directory user `externalId` (Okta user id, Azure object id, etc.) |
+| `extension.references[0].type` | Constant `CustomerDirectoryId` |
+
+Required after mapping: `firstName`, `lastName`, `email`.
+
+**Response** mirrors the request shape under `items[]`:
+
+```json
+{
+  "items": [
+    {
+      "successful": true,
+      "extension": {
+        "id": 1234567,
+        "type": "User",
+        "status": "Enabled",
+        "contact": { "firstName": "John", "lastName": "Doe", "email": "john.doe@mycompany.com" },
+        "references": [{ "type": "CustomerDirectoryId", "ref": "00u1gt29c33IPjYgI1d8" }]
+      }
+    }
+  ]
+}
+```
+
+DSG reads `items[0].successful` and `items[0].extension.id` as the provisioned RC user id.
+
+---
+
 ### Update extension (Type 2 implicit mapping sync)
 
 ```http

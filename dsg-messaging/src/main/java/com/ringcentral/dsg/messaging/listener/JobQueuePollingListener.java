@@ -14,11 +14,15 @@ import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
 /**
- * SPIKE-4 POC: Spring {@link Scheduled} polling consumer (production will use dedicated worker processes).
+ * SPIKE-4 POC only — do not enable alongside real workers ({@code JobRetrievalConsumer},
+ * {@code SyncWorkerConsumer}). This listener acks messages without processing them.
+ *
+ * <p>Not registered by default (requires {@code dsg.messaging.listener.poc-only=true} and component
+ * scan of {@code com.ringcentral.dsg.messaging.listener}).
  */
 @Component
 @EnableScheduling
-@ConditionalOnProperty(prefix = "dsg.messaging.listener", name = "enabled", havingValue = "true")
+@ConditionalOnProperty(prefix = "dsg.messaging.listener", name = "poc-only", havingValue = "true")
 public class JobQueuePollingListener {
 
   private static final Logger log = LoggerFactory.getLogger(JobQueuePollingListener.class);

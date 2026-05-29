@@ -46,8 +46,8 @@ class SqsMessageQueuePortIT {
             "x",
             "dsg-job-queue",
             "dsg-job-detail-queue",
-            1,
-            1);
+            10,
+            0);
     messageQueuePort = new SqsMessageQueuePort(properties, new ObjectMapper());
   }
 
@@ -76,20 +76,23 @@ class SqsMessageQueuePortIT {
   }
 
   @Test
-  void publishesAndConsumesJobDetailMessage() {
-    JobDetailMessage sent =
-        new JobDetailMessage("detail-1", "job-1", "acct-100", "ext-user-9", "CREATE");
-    messageQueuePort.publishJobDetail(sent);
+  void receivesMultipleJobDetailMessagesInOneBatch() {
+    JobDetailMessage first =
+            new JobDetailMessage("detail-1", "job-1", "acct-100", "ext-user-1", "CREATE");
+    JobDetailMessage second =
+            new JobDetailMessage("detail-2", "job-1", "acct-100", "ext-user-2", "CREATE");
+    messageQueuePort.publishJobDetail(first);
+    messageQueuePort.publishJobDetail(second);
 
     await()
         .atMost(Duration.ofSeconds(10))
         .untilAsserted(
             () -> {
-              Optional<ReceivedMessage<JobDetailMessage>> received =
-                  messageQueuePort.receiveJobDetail(Duration.ofSeconds(2));
-              assertThat(received).isPresent();
-              assertThat(received.get().payload()).isEqualTo(sent);
-              messageQueuePort.acknowledgeJobDetail(received.get());
+              var received = messageQueuePort.receiveJobDetails(Duration.ofSeconds(2));
+              assertThat(received).hasSize(2);
+              assertThat(received.stream().map(r -> r.payload().jobDetailId()))
+                      .containsExactlyInAnyOrder("detail-1", "detail-2");
+              received.forEach(messageQueuePort::acknowledgeJobDetail);
             });
   }
 }

@@ -1,6 +1,7 @@
 package com.ringcentral.dsg.messaging;
 
 import java.time.Duration;
+import java.util.List;
 import java.util.Optional;
 
 /**
@@ -17,6 +18,9 @@ public interface MessageQueuePort {
   Optional<ReceivedMessage<JobMessage>> receiveJob(Duration waitTime);
 
   Optional<ReceivedMessage<JobDetailMessage>> receiveJobDetail(Duration waitTime);
+
+  /** Receive up to {@code maxNumberOfMessages} pending job-detail messages in one SQS call. */
+  List<ReceivedMessage<JobDetailMessage>> receiveJobDetails(Duration waitTime);
 
   void acknowledgeJob(ReceivedMessage<JobMessage> message);
 

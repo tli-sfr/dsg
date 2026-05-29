@@ -3,12 +3,14 @@ package com.ringcentral.dsg.worker.service;
 import com.ringcentral.dsg.directory.DirectoryUser;
 import com.ringcentral.dsg.mapping.AttributeMapping;
 import com.ringcentral.dsg.mapping.AttributeMappingApplier;
+import com.ringcentral.dsg.mapping.DirectorySyncHashCalculator;
 import com.ringcentral.dsg.mapping.DirectorySyncTrace;
 import com.ringcentral.dsg.messaging.JobDetailMessage;
 import com.ringcentral.dsg.provisioning.ProvisioningResult;
 import com.ringcentral.dsg.provisioning.RcProvisioningPort;
 import com.ringcentral.dsg.persistence.model.AccountDirectoryAuthRecord;
 import com.ringcentral.dsg.persistence.repo.AccountDirectoryAuthRepository;
+import com.ringcentral.dsg.persistence.repo.DirectorySyncUserHashRepository;
 import com.ringcentral.dsg.persistence.repo.JobDetailRepository;
 import com.ringcentral.dsg.persistence.repo.ProvisioningRuleRepository;
 import com.ringcentral.dsg.worker.mapping.AccountAttributeMappingResolver;
@@ -27,6 +29,7 @@ public class SyncWorkerService {
     private final ProvisioningRuleRepository provisioningRuleRepository;
     private final AccountDirectoryAuthRepository authRepository;
     private final AccountAttributeMappingResolver attributeMappingResolver;
+    private final DirectorySyncUserHashRepository userHashRepository;
     private final RcProvisioningPort rcProvisioningPort;
     private final JobConsolidatorService consolidatorService;
 
@@ -35,12 +38,14 @@ public class SyncWorkerService {
             ProvisioningRuleRepository provisioningRuleRepository,
             AccountDirectoryAuthRepository authRepository,
             AccountAttributeMappingResolver attributeMappingResolver,
+            DirectorySyncUserHashRepository userHashRepository,
             RcProvisioningPort rcProvisioningPort,
             JobConsolidatorService consolidatorService) {
         this.jobDetailRepository = jobDetailRepository;
         this.provisioningRuleRepository = provisioningRuleRepository;
         this.authRepository = authRepository;
         this.attributeMappingResolver = attributeMappingResolver;
+        this.userHashRepository = userHashRepository;
         this.rcProvisioningPort = rcProvisioningPort;
         this.consolidatorService = consolidatorService;
     }
@@ -62,9 +67,8 @@ public class SyncWorkerService {
         java.util.List<AttributeMapping> mappings = attributeMappingResolver.listForAccount(message.accountId());
         DirectoryUser mapped = AttributeMappingApplier.apply(user, mappings);
         DirectorySyncTrace.logMappingResolution(message.accountId(), user, mappings, mapped);
-        user = mapped;
 
-        if (user.email() == null || user.email().isBlank()) {
+        if (mapped.email() == null || mapped.email().isBlank()) {
             ProvisioningResult missingEmail = new ProvisioningResult(
                     null,
                     false,
@@ -75,15 +79,16 @@ public class SyncWorkerService {
             return;
         }
 
-        if (message.ruleId() != null) {
+        DirectoryUser provisionUser = mapped;
+        if ("CREATE".equals(message.operation()) && message.ruleId() != null) {
             long ruleId = Long.parseLong(message.ruleId());
-            user = RuleBasedMappingApplier.apply(
-                    user, provisioningRuleRepository.listRuleBasedMappings(ruleId));
+            provisionUser = RuleBasedMappingApplier.apply(
+                    mapped, provisioningRuleRepository.listRuleBasedMappings(ruleId));
         }
 
         ProvisioningResult result = switch (message.operation()) {
-            case "CREATE" -> provisionCreate(message, user);
-            case "UPDATE" -> updateExisting(message, user);
+            case "CREATE" -> provisionCreate(message, provisionUser);
+            case "UPDATE" -> updateExisting(message, mapped);
             default -> {
                 log.warn("Skipping job detail {} — unsupported operation {}", jobDetailId, message.operation());
                 yield new ProvisioningResult(null, false, "Unsupported operation: " + message.operation());
@@ -91,6 +96,18 @@ public class SyncWorkerService {
         };
 
         if (result.success()) {
+            String externalHash = DirectorySyncHashCalculator.compute(mapped, mappings);
+            userHashRepository.upsertAfterProvision(
+                    message.accountId(),
+                    auth.directoryTypeId(),
+                    message.externalId(),
+                    externalHash,
+                    result.mailboxId());
+            log.info(
+                    "[DSG sync:hash] account={} externalId={} mailboxId={} hashStored=true",
+                    message.accountId(),
+                    message.externalId(),
+                    result.mailboxId());
             jobDetailRepository.updateState(jobDetailId, "SUCCEEDED", result.mailboxId(), result.message());
             log.info("Job detail {} succeeded mailboxId={}", jobDetailId, result.mailboxId());
         } else {
@@ -111,7 +128,13 @@ public class SyncWorkerService {
     }
 
     private ProvisioningResult updateExisting(JobDetailMessage message, DirectoryUser user) {
-        String rcUserId = message.externalId();
-        return rcProvisioningPort.updateExtension(message.accountId(), rcUserId, user);
+        String rcExtensionId = message.mailboxId();
+        if (rcExtensionId == null || rcExtensionId.isBlank()) {
+            return new ProvisioningResult(
+                    null,
+                    false,
+                    "UPDATE requires mailbox_id from directory_sync_user_hash; re-run full sync to recreate");
+        }
+        return rcProvisioningPort.updateExtension(message.accountId(), rcExtensionId, user);
     }
 }

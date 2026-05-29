@@ -12,7 +12,7 @@ import org.springframework.stereotype.Component;
 /**
  * Routes provisioning by primary license:
  * Video Pro / Video Pro+ → Extensions createExtension;
- * RingEX → SCIM Users (create, then scimGetUser2);
+ * RingEX → Extensions bulk-assign with CustomerDirectoryId reference;
  * Updates → Extensions updateExtension.
  */
 @Component
@@ -95,18 +95,36 @@ public class LicenseAwareRcProvisioningPort implements RcProvisioningPort {
                         true,
                         "Created via Extensions/createExtension (" + license.label() + ")");
             }
-            RcScimUserRequest scimRequest = buildScimRequest(user);
-            DirectorySyncTrace.logRcProvisionPayload(accountId, "CREATE_SCIM_USER", rcPayload(scimRequest));
-            RcScimUserResponse created = provisioningClient.createScimUser(accessToken, scimRequest);
-            if (created == null || created.id() == null) {
-                return new ProvisioningResult(null, false, "SCIM create user returned no id");
+            RcBulkAssignRequest bulkRequest = RcBulkAssignRequest.forDirectoryUser(user);
+            DirectorySyncTrace.logRcProvisionPayload(
+                    accountId, "BULK_ASSIGN_EXTENSION", rcPayload(bulkRequest));
+            RcBulkAssignHttpResult httpResult = provisioningClient.bulkAssignExtensions(accessToken, bulkRequest);
+            RcBulkAssignResponse response = httpResult.response();
+            DirectorySyncTrace.logRcProvisionResponse(
+                    accountId,
+                    "BULK_ASSIGN_EXTENSION",
+                    httpResult.rawBody(),
+                    response != null ? response.firstExtensionId() : null,
+                    response != null ? response.firstItemSuccessfulFlag() : null);
+            if (response == null || !response.isProvisionSuccess()) {
+                return new ProvisioningResult(
+                        null,
+                        false,
+                        "bulk-assign failed or returned no extension id (see response log above)");
             }
-            RcScimUserResponse verified = provisioningClient.getScimUser(accessToken, created.id());
-            String mailboxId = verified != null && verified.id() != null ? verified.id() : created.id();
+            String extensionId = response.firstExtensionId();
+            if (extensionId == null) {
+                return new ProvisioningResult(
+                        null,
+                        false,
+                        "bulk-assign marked successful but returned no extension id (see response log above)");
+            }
             return new ProvisioningResult(
-                    mailboxId,
+                    extensionId,
                     true,
-                    "Provisioned via SCIM (create + scimGetUser2) for RingEX");
+                    "Provisioned via Extensions/bulk-assign (CustomerDirectoryId="
+                            + user.externalId()
+                            + ") for RingEX");
         } catch (IllegalStateException ex) {
             return new ProvisioningResult(null, false, ex.getMessage());
         }
@@ -125,38 +143,22 @@ public class LicenseAwareRcProvisioningPort implements RcProvisioningPort {
     }
 
     private static RcExtensionCreateRequest buildCreateRequest(DirectoryUser user, ProductLicense license) {
-        String firstName = requireRcAttribute(user, "firstName");
-        String lastName = requireRcAttribute(user, "lastName");
-        String department = rcAttribute(user, "department");
-        return RcExtensionCreateRequest.fromDirectoryUser(firstName, lastName, user.email(), department);
+        RcBulkAssignContact contact = RcMappedContactBuilder.buildContact(user);
+        return RcExtensionCreateRequest.fromDirectoryUser(
+                contact.firstName(), contact.lastName(), contact.email(), contact.department());
     }
 
     private static RcExtensionUpdateRequest buildUpdateRequest(DirectoryUser user) {
-        String firstName = rcAttribute(user, "firstName");
-        String lastName = rcAttribute(user, "lastName");
-        String department = rcAttribute(user, "department");
-        String jobTitle = rcAttribute(user, "jobTitle");
         return new RcExtensionUpdateRequest(
-                new RcExtensionContact(firstName, lastName, user.email(), department, jobTitle),
+                new RcExtensionContact(
+                        rcAttribute(user, "firstName"),
+                        rcAttribute(user, "lastName"),
+                        user.email(),
+                        rcAttribute(user, "department"),
+                        rcAttribute(user, "jobTitle")),
                 null);
     }
 
-    private static RcScimUserRequest buildScimRequest(DirectoryUser user) {
-        String firstName = requireRcAttribute(user, "firstName");
-        String lastName = requireRcAttribute(user, "lastName");
-        return RcScimUserRequest.fromDirectoryUser(user.email(), firstName, lastName);
-    }
-
-    private static String requireRcAttribute(DirectoryUser user, String rcAttributeName) {
-        String value = rcAttribute(user, rcAttributeName);
-        if (value == null || value.isBlank()) {
-            throw new IllegalStateException(
-                    "Required RC attribute '" + rcAttributeName + "' is missing after attribute mapping");
-        }
-        return value;
-    }
-
-    /** Values populated by {@link com.ringcentral.dsg.mapping.AttributeMappingApplier} in the worker. */
     private static String rcAttribute(DirectoryUser user, String rcAttributeName) {
         String value = user.attributes().get(rcAttributeName);
         return value != null && !value.isBlank() ? value : null;
@@ -174,26 +176,42 @@ public class LicenseAwareRcProvisioningPort implements RcProvisioningPort {
         return payload;
     }
 
-    private static java.util.Map<String, String> rcPayload(RcScimUserRequest request) {
+    private static java.util.Map<String, String> rcPayload(RcBulkAssignRequest request) {
         java.util.Map<String, String> payload = new java.util.LinkedHashMap<>();
-        payload.put("userName", request.userName());
-        if (request.name() != null) {
-            payload.put("firstName", request.name().givenName());
-            payload.put("lastName", request.name().familyName());
-        }
-        if (request.emails() != null && !request.emails().isEmpty()) {
-            payload.put("email", request.emails().get(0).value());
+        if (request.items() != null && !request.items().isEmpty()) {
+            RcBulkAssignItem item = request.items().get(0);
+            if (item.extension() != null && item.extension().contact() != null) {
+                RcBulkAssignContact contact = item.extension().contact();
+                payload.put("firstName", contact.firstName());
+                payload.put("lastName", contact.lastName());
+                payload.put("email", contact.email());
+                payload.put("department", contact.department());
+                payload.put("mobilePhone", contact.mobilePhone());
+                if (contact.businessAddress() != null) {
+                    RcBusinessAddress address = contact.businessAddress();
+                    payload.put("street", address.street());
+                    payload.put("city", address.city());
+                    payload.put("state", address.state());
+                    payload.put("zip", address.zip());
+                    payload.put("country", address.country());
+                }
+            }
+            if (item.extension() != null
+                    && item.extension().references() != null
+                    && !item.extension().references().isEmpty()) {
+                payload.put("CustomerDirectoryId", item.extension().references().get(0).ref());
+            }
         }
         return payload;
     }
 
     private static ProvisioningResult stubProvision(DirectoryUser user, ProductLicense license) {
-        String mailboxId = license.usesScimApi()
-                ? "scim-" + user.externalId()
+        String mailboxId = license.usesBulkAssignApi()
+                ? "bulk-" + user.externalId()
                 : "ext-" + user.externalId();
         String api = license.usesExtensionCreateApi()
                 ? "Extensions/createExtension"
-                : "SCIM Users (create + scimGetUser2)";
+                : "Extensions/bulk-assign";
         return new ProvisioningResult(
                 mailboxId,
                 true,
