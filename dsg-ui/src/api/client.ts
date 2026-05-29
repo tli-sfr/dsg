@@ -164,6 +164,9 @@ export const api = {
   getLatestReport: (accountId: string) =>
     request<JobReportResponse>(accountId, '/jobs/latest/report'),
 
+  getJobReport: (accountId: string, jobId: string) =>
+    request<JobReportResponse>(accountId, `/jobs/${jobId}/report`),
+
   listJobs: (accountId: string, limit = 10) =>
     request<{ jobs: JobSummary[] }>(accountId, `/jobs?limit=${limit}`),
 

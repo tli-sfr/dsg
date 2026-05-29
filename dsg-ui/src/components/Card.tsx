@@ -6,7 +6,7 @@ export function Card({
   action,
 }: {
   title: string;
-  children: ReactNode;
+  children?: ReactNode;
   action?: ReactNode;
 }) {
   return (
@@ -15,7 +15,7 @@ export function Card({
         <h2 className="text-sm font-semibold text-rc-navy">{title}</h2>
         {action}
       </header>
-      <div className="px-5 py-4">{children}</div>
+      {children ? <div className="px-5 py-4">{children}</div> : null}
     </section>
   );
 }
