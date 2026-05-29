@@ -6,7 +6,6 @@ import type {
   DeprovisioningType,
   DirectoryResponse,
   JobReportResponse,
-  JobSummary,
   ProvisioningRuleSummary,
 } from '../api/types';
 import { AttributeMappingSection } from '../components/AttributeMappingSection';
@@ -18,7 +17,6 @@ export function DashboardPage() {
   const accountId = useAccountId();
   const [directory, setDirectory] = useState<DirectoryResponse | null>(null);
   const [latestReport, setLatestReport] = useState<JobReportResponse | null>(null);
-  const [jobs, setJobs] = useState<JobSummary[]>([]);
   const [rules, setRules] = useState<ProvisioningRuleSummary[]>([]);
   const [deprovisionType, setDeprovisionType] = useState<DeprovisioningType>('FULL_DELETE');
   const [groupId, setGroupId] = useState('');
@@ -29,16 +27,14 @@ export function DashboardPage() {
   const refresh = useCallback(async () => {
     setError(null);
     try {
-      const [dir, report, history, ruleList, deprov] = await Promise.all([
+      const [dir, report, ruleList, deprov] = await Promise.all([
         api.getDirectory(accountId).catch(() => null),
         api.getLatestReport(accountId).catch(() => null),
-        api.listJobs(accountId, 10),
         api.listRules(accountId),
         api.getDeprovisioning(accountId),
       ]);
       setDirectory(dir);
       setLatestReport(report);
-      setJobs(history.jobs);
       setRules(ruleList.rules);
       setDeprovisionType(deprov.deprovisioningType);
       if (dir?.directoryGroupId) setGroupId(dir.directoryGroupId);
@@ -194,40 +190,6 @@ export function DashboardPage() {
             Save sync settings
           </button>
         </div>
-      </Card>
-
-      <Card title="Sync history">
-        <table className="w-full text-left text-sm">
-          <thead>
-            <tr className="border-b text-slate-500">
-              <th className="py-2">Job</th>
-              <th>Type</th>
-              <th>State</th>
-              <th>OK</th>
-              <th>Failed</th>
-              <th>Started</th>
-            </tr>
-          </thead>
-          <tbody>
-            {jobs.map((j) => (
-              <tr key={j.jobId} className="border-b border-slate-50">
-                <td className="py-2 font-mono text-xs">{j.jobId}</td>
-                <td>{j.jobType}</td>
-                <td>{j.state}</td>
-                <td>{j.successCount}</td>
-                <td>{j.failedCount}</td>
-                <td>{formatInstant(j.startedAt)}</td>
-              </tr>
-            ))}
-            {jobs.length === 0 && (
-              <tr>
-                <td colSpan={6} className="py-4 text-slate-500">
-                  No jobs yet.
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
       </Card>
 
       <Card
