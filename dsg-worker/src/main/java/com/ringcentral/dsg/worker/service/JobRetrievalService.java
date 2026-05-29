@@ -7,9 +7,11 @@ import com.ringcentral.dsg.messaging.JobDetailMessage;
 import com.ringcentral.dsg.messaging.JobMessage;
 import com.ringcentral.dsg.messaging.MessageQueuePort;
 import com.ringcentral.dsg.persistence.model.AccountDirectoryAuthRecord;
+import com.ringcentral.dsg.persistence.model.DirectorySyncUserHashRecord;
 import com.ringcentral.dsg.persistence.model.JobContext;
 import com.ringcentral.dsg.persistence.model.ProvisioningRuleRecord;
 import com.ringcentral.dsg.persistence.repo.AccountDirectoryAuthRepository;
+import com.ringcentral.dsg.persistence.repo.DirectorySyncUserHashRepository;
 import com.ringcentral.dsg.persistence.repo.JobDetailRepository;
 import com.ringcentral.dsg.persistence.repo.JobRepository;
 import com.ringcentral.dsg.persistence.repo.ProvisioningRuleRepository;
@@ -21,8 +23,11 @@ import com.ringcentral.dsg.worker.sync.SyncOperation;
 import com.ringcentral.dsg.worker.sync.SyncOperationPlan;
 import com.ringcentral.dsg.worker.sync.SyncOperationPlanner;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -42,6 +47,7 @@ public class JobRetrievalService {
     private final AccountAttributeMappingResolver attributeMappingResolver;
     private final SyncOperationPlanner syncOperationPlanner;
     private final JobConsolidatorService consolidatorService;
+    private final DirectorySyncUserHashRepository userHashRepository;
 
     public JobRetrievalService(
             JobRepository jobRepository,
@@ -52,7 +58,8 @@ public class JobRetrievalService {
             MessageQueuePort messageQueuePort,
             AccountAttributeMappingResolver attributeMappingResolver,
             SyncOperationPlanner syncOperationPlanner,
-            JobConsolidatorService consolidatorService) {
+            JobConsolidatorService consolidatorService,
+            DirectorySyncUserHashRepository userHashRepository) {
         this.jobRepository = jobRepository;
         this.jobDetailRepository = jobDetailRepository;
         this.authRepository = authRepository;
@@ -62,6 +69,7 @@ public class JobRetrievalService {
         this.attributeMappingResolver = attributeMappingResolver;
         this.syncOperationPlanner = syncOperationPlanner;
         this.consolidatorService = consolidatorService;
+        this.userHashRepository = userHashRepository;
     }
 
     @Transactional
@@ -141,6 +149,11 @@ public class JobRetrievalService {
             detailCount++;
         }
 
+        if ("FULL".equals(job.jobType())) {
+            detailCount += enqueueRemovedFromDirectoryUsers(
+                    jobId, message, auth.directoryTypeId(), members, detailMessages);
+        }
+
         jobRepository.updateJobState(jobId, "READY");
         log.info(
                 "Job {} prepared {} job details ({} unchanged) from {} directory users",
@@ -158,6 +171,70 @@ public class JobRetrievalService {
         } else {
             consolidatorService.consolidateIfComplete(jobId);
         }
+    }
+
+    private int enqueueRemovedFromDirectoryUsers(
+            long jobId,
+            JobMessage message,
+            int directoryTypeId,
+            List<DirectoryUser> pulledUsers,
+            List<JobDetailMessage> detailMessages) {
+        Set<String> pulledExternalIds = new HashSet<>();
+        for (DirectoryUser user : pulledUsers) {
+            pulledExternalIds.add(user.externalId());
+        }
+
+        List<DirectorySyncUserHashRecord> syncedUsers = userHashRepository.listByAccount(message.accountId(), directoryTypeId);
+        List<DirectorySyncUserHashRecord> removedUsers = syncedUsers.stream()
+                .filter(hash -> !pulledExternalIds.contains(hash.externalId()))
+                .toList();
+
+        log.info(
+                "[DSG sync:removed-from-directory] account={} hashRows={} pulledUsers={} removedFromDirectory={}",
+                message.accountId(),
+                syncedUsers.size(),
+                pulledExternalIds.size(),
+                removedUsers.size());
+
+        int deleteCount = 0;
+        for (DirectorySyncUserHashRecord removed : removedUsers) {
+            log.info(
+                    "[DSG sync:removed-from-directory] account={} externalId={} mailboxId={} externalUserHash={}",
+                    message.accountId(),
+                    removed.externalId(),
+                    removed.mailboxId(),
+                    removed.externalUserHash());
+
+            if (removed.mailboxId() == null || removed.mailboxId().isBlank()) {
+                log.warn(
+                        "[DSG sync:removed-from-directory] account={} externalId={} skipped DELETE — no mailbox_id in hash",
+                        message.accountId(),
+                        removed.externalId());
+                continue;
+            }
+
+            long detailId = jobDetailRepository.insertPendingDelete(
+                    jobId, removed.externalId(), removed.mailboxId());
+            JobDetailMessage detailMessage = new JobDetailMessage(
+                    Long.toString(detailId),
+                    message.jobId(),
+                    message.accountId(),
+                    removed.externalId(),
+                    "DELETE",
+                    null,
+                    null,
+                    Map.of(),
+                    removed.mailboxId());
+            detailMessages.add(detailMessage);
+            log.info(
+                    "Job {} enqueued job detail {} operation=DELETE externalId={} mailboxId={}",
+                    jobId,
+                    detailId,
+                    removed.externalId(),
+                    removed.mailboxId());
+            deleteCount++;
+        }
+        return deleteCount;
     }
 
     private ProvisioningRuleMatch toMatch(ProvisioningRuleRecord record) {

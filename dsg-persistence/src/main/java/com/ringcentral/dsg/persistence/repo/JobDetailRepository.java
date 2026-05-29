@@ -28,6 +28,10 @@ public class JobDetailRepository {
         return insertPending(jobId, externalId, 2, null, mailboxId);
     }
 
+    public long insertPendingDelete(long jobId, String externalId, String mailboxId) {
+        return insertPending(jobId, externalId, 3, null, mailboxId);
+    }
+
     private long insertPending(long jobId, String externalId, int operationId, Long ruleId, String mailboxId) {
         GeneratedKeyHolder keyHolder = new GeneratedKeyHolder();
         jdbcTemplate.update(connection -> {

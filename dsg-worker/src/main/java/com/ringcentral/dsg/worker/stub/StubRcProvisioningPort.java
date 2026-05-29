@@ -34,4 +34,12 @@ public class StubRcProvisioningPort implements RcProvisioningPort {
                 true,
                 "Stub User-Settings/updateExtension for " + directoryUser.email());
     }
+
+    @Override
+    public ProvisioningResult deleteExtension(String accountId, String rcExtensionId) {
+        return new ProvisioningResult(
+                rcExtensionId,
+                true,
+                "Stub Extensions/deleteExtension (savePhoneLines=true) for mailbox " + rcExtensionId);
+    }
 }

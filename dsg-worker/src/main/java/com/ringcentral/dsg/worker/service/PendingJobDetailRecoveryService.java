@@ -9,6 +9,7 @@ import com.ringcentral.dsg.persistence.model.PendingJobDetailRow;
 import com.ringcentral.dsg.persistence.repo.AccountDirectoryAuthRepository;
 import com.ringcentral.dsg.persistence.repo.JobDetailRepository;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -60,6 +61,34 @@ public class PendingJobDetailRecoveryService {
     }
 
     private boolean republish(PendingJobDetailRow row) {
+        String operation = row.operation() != null ? row.operation() : "CREATE";
+        if ("DELETE".equals(operation)) {
+            if (row.mailboxId() == null || row.mailboxId().isBlank()) {
+                log.warn(
+                        "[DSG sync:recovery] jobDetailId={} jobId={} externalId={} DELETE missing mailbox_id — skip",
+                        row.jobDetailId(),
+                        row.jobId(),
+                        row.externalId());
+                return false;
+            }
+            messageQueuePort.publishJobDetail(new JobDetailMessage(
+                    Long.toString(row.jobDetailId()),
+                    Long.toString(row.jobId()),
+                    row.accountId(),
+                    row.externalId(),
+                    operation,
+                    null,
+                    null,
+                    Map.of(),
+                    row.mailboxId()));
+            log.info(
+                    "[DSG sync:recovery] republished jobDetailId={} jobId={} externalId={} operation=DELETE mailboxId={}",
+                    row.jobDetailId(),
+                    row.jobId(),
+                    row.externalId(),
+                    row.mailboxId());
+            return true;
+        }
         Optional<DirectoryUser> user = findDirectoryUser(row.accountId(), row.externalId());
         if (user.isEmpty()) {
             log.warn(
@@ -70,7 +99,6 @@ public class PendingJobDetailRecoveryService {
             return false;
         }
         DirectoryUser directoryUser = user.get();
-        String operation = row.operation() != null ? row.operation() : "CREATE";
         messageQueuePort.publishJobDetail(new JobDetailMessage(
                 Long.toString(row.jobDetailId()),
                 Long.toString(row.jobId()),

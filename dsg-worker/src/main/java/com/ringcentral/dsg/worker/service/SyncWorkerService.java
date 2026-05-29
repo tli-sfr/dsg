@@ -10,6 +10,7 @@ import com.ringcentral.dsg.provisioning.ProvisioningResult;
 import com.ringcentral.dsg.provisioning.RcProvisioningPort;
 import com.ringcentral.dsg.persistence.model.AccountDirectoryAuthRecord;
 import com.ringcentral.dsg.persistence.repo.AccountDirectoryAuthRepository;
+import com.ringcentral.dsg.persistence.repo.DeprovisioningRuleRepository;
 import com.ringcentral.dsg.persistence.repo.DirectorySyncUserHashRepository;
 import com.ringcentral.dsg.persistence.repo.JobDetailRepository;
 import com.ringcentral.dsg.persistence.repo.ProvisioningRuleRepository;
@@ -26,6 +27,7 @@ public class SyncWorkerService {
     private static final Logger log = LoggerFactory.getLogger(SyncWorkerService.class);
 
     private final JobDetailRepository jobDetailRepository;
+    private final DeprovisioningRuleRepository deprovisioningRuleRepository;
     private final ProvisioningRuleRepository provisioningRuleRepository;
     private final AccountDirectoryAuthRepository authRepository;
     private final AccountAttributeMappingResolver attributeMappingResolver;
@@ -35,6 +37,7 @@ public class SyncWorkerService {
 
     public SyncWorkerService(
             JobDetailRepository jobDetailRepository,
+            DeprovisioningRuleRepository deprovisioningRuleRepository,
             ProvisioningRuleRepository provisioningRuleRepository,
             AccountDirectoryAuthRepository authRepository,
             AccountAttributeMappingResolver attributeMappingResolver,
@@ -42,6 +45,7 @@ public class SyncWorkerService {
             RcProvisioningPort rcProvisioningPort,
             JobConsolidatorService consolidatorService) {
         this.jobDetailRepository = jobDetailRepository;
+        this.deprovisioningRuleRepository = deprovisioningRuleRepository;
         this.provisioningRuleRepository = provisioningRuleRepository;
         this.authRepository = authRepository;
         this.attributeMappingResolver = attributeMappingResolver;
@@ -54,6 +58,11 @@ public class SyncWorkerService {
     public void processJobDetailMessage(JobDetailMessage message) {
         long jobDetailId = Long.parseLong(message.jobDetailId());
         jobDetailRepository.updateState(jobDetailId, "IN_SYNC", null, null);
+
+        if ("DELETE".equals(message.operation())) {
+            processDelete(message, jobDetailId);
+            return;
+        }
 
         DirectoryUser user = new DirectoryUser(
                 message.externalId(),
@@ -113,6 +122,60 @@ public class SyncWorkerService {
         } else {
             jobDetailRepository.updateState(jobDetailId, "FAILED", null, result.message());
             log.warn("Job detail {} failed: {}", jobDetailId, result.message());
+        }
+
+        jobDetailRepository.findJobIdForDetail(jobDetailId)
+                .ifPresent(consolidatorService::consolidateIfComplete);
+    }
+
+    private void processDelete(JobDetailMessage message, long jobDetailId) {
+        AccountDirectoryAuthRecord auth = authRepository.findByAccountId(message.accountId())
+                .orElseThrow(() -> new IllegalStateException(
+                        "Directory auth missing for account " + message.accountId()));
+
+        String deprovisioningType = deprovisioningRuleRepository
+                .findByAccountId(message.accountId())
+                .map(record -> record.deprovisioningType())
+                .orElse("FULL_DELETE");
+
+        if (!"FULL_DELETE".equals(deprovisioningType)) {
+            ProvisioningResult skipped = new ProvisioningResult(
+                    message.mailboxId(),
+                    false,
+                    "DELETE skipped — deprovisioning policy is " + deprovisioningType);
+            jobDetailRepository.updateState(jobDetailId, "FAILED", message.mailboxId(), skipped.message());
+            log.warn("Job detail {} skipped DELETE — policy {}", jobDetailId, deprovisioningType);
+            jobDetailRepository.findJobIdForDetail(jobDetailId)
+                    .ifPresent(consolidatorService::consolidateIfComplete);
+            return;
+        }
+
+        String mailboxId = message.mailboxId();
+        if (mailboxId == null || mailboxId.isBlank()) {
+            ProvisioningResult missingMailbox = new ProvisioningResult(
+                    null,
+                    false,
+                    "DELETE requires mailbox_id from directory_sync_user_hash");
+            jobDetailRepository.updateState(jobDetailId, "FAILED", null, missingMailbox.message());
+            jobDetailRepository.findJobIdForDetail(jobDetailId)
+                    .ifPresent(consolidatorService::consolidateIfComplete);
+            return;
+        }
+
+        ProvisioningResult result = rcProvisioningPort.deleteExtension(message.accountId(), mailboxId);
+        if (result.success()) {
+            userHashRepository.delete(
+                    message.accountId(), auth.directoryTypeId(), message.externalId());
+            log.info(
+                    "[DSG sync:deprovision] account={} externalId={} mailboxId={} hashRemoved=true",
+                    message.accountId(),
+                    message.externalId(),
+                    mailboxId);
+            jobDetailRepository.updateState(jobDetailId, "SUCCEEDED", mailboxId, result.message());
+            log.info("Job detail {} DELETE succeeded mailboxId={}", jobDetailId, mailboxId);
+        } else {
+            jobDetailRepository.updateState(jobDetailId, "FAILED", mailboxId, result.message());
+            log.warn("Job detail {} DELETE failed: {}", jobDetailId, result.message());
         }
 
         jobDetailRepository.findJobIdForDetail(jobDetailId)
