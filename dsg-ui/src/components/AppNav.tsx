@@ -15,7 +15,7 @@ export function AppNav() {
     : '';
 
   return (
-    <nav className="border-b border-slate-200 bg-white px-6">
+    <nav className="border-b border-neutral-b4 bg-neutral-base px-6">
       <div className="flex gap-6">
         {tabs.map((tab) => (
           <NavLink
@@ -23,10 +23,10 @@ export function AppNav() {
             to={`${tab.to}${accountQuery}`}
             end={tab.end ?? false}
             className={({ isActive }) =>
-              `border-b-2 py-3 text-sm font-medium ${
+              `border-b-2 py-3 typography-labelSemiBold ${
                 isActive
-                  ? 'border-rc-orange text-rc-navy'
-                  : 'border-transparent text-slate-500 hover:text-rc-navy'
+                  ? 'border-primary-b text-neutral-b1'
+                  : 'border-transparent text-neutral-b3 hover:text-neutral-b1'
               }`
             }
           >

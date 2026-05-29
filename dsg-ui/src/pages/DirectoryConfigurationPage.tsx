@@ -1,4 +1,16 @@
-import { Database, Globe, KeyRound } from 'lucide-react';
+import { GlobeMd } from '@ringcentral/spring-icon';
+import {
+  Alert,
+  Block,
+  BlockHeader,
+  Button,
+  FormLabel,
+  Icon,
+  Option,
+  Select,
+  Tag,
+  TextField,
+} from '@ringcentral/spring-ui';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { api } from '../api/client';
 import type { DirectoryOAuthConfig, DirectoryType } from '../api/types';
@@ -195,185 +207,167 @@ export function DirectoryConfigurationPage() {
         />
       )}
       <div>
-        <h1 className="text-2xl font-semibold text-rc-navy">Directory Configuration</h1>
-        <p className="text-sm text-slate-500">
+        <h1 className="typography-title text-neutral-b1">Directory Configuration</h1>
+        <p className="typography-label text-neutral-b3">
           Connect your identity provider and choose which directory group to sync.
         </p>
       </div>
 
-      {message && <p className="rounded bg-green-50 px-4 py-2 text-sm text-green-800">{message}</p>}
-      {error && <p className="rounded bg-red-50 px-4 py-2 text-sm text-red-800">{error}</p>}
+      {message && (
+        <Alert severity="success" onClose={() => setMessage(null)}>
+          {message}
+        </Alert>
+      )}
+      {error && (
+        <Alert severity="error" onClose={() => setError(null)}>
+          {error}
+        </Alert>
+      )}
 
-      <section className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
-        <header className="flex items-start justify-between border-b border-slate-100 px-6 py-5">
+      <Block>
+        <BlockHeader
+          divider
+          endSlot={
+            connected ? (
+              <Tag color="success" variant="filled">
+                CONNECTED
+              </Tag>
+            ) : connecting ? (
+              <Tag color="warning" variant="filled">
+                CONNECTING…
+              </Tag>
+            ) : undefined
+          }
+        >
           <div className="flex items-start gap-3">
-            <div className="rounded-lg bg-blue-50 p-2 text-blue-600">
-              <Globe className="h-5 w-5" />
-            </div>
+            <Icon symbol={GlobeMd} className="text-primary-b" />
             <div>
-              <h2 className="text-lg font-semibold text-slate-900">IDP Authorization</h2>
-              <p className="text-sm text-slate-500">Connect to your directory provider via OAuth</p>
+              <div className="typography-subtitleMiniSemiBold">IDP Authorization</div>
+              <p className="typography-label text-neutral-b3">
+                Connect to your directory provider via OAuth
+              </p>
             </div>
           </div>
-          {connected ? (
-            <span className="rounded-full bg-green-100 px-3 py-1 text-xs font-semibold tracking-wide text-green-700">
-              CONNECTED
-            </span>
-          ) : connecting ? (
-            <span className="rounded-full bg-amber-100 px-3 py-1 text-xs font-semibold tracking-wide text-amber-700">
-              CONNECTING…
-            </span>
-          ) : null}
-        </header>
+        </BlockHeader>
 
-        <div className="space-y-6 px-6 py-5">
-          <div>
-            <label className="mb-2 block text-xs font-semibold uppercase tracking-wide text-slate-500">
-              Provider
-            </label>
-            <div className="relative">
-              <Database className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-              <select
-                className="w-full appearance-none rounded-lg border border-slate-300 bg-white py-2.5 pl-10 pr-4 text-sm disabled:bg-slate-50"
-                value={directoryType}
-                disabled={formLocked}
-                onChange={(e) => setDirectoryType(e.target.value as DirectoryType)}
-              >
-                {PROVIDERS.map((p) => (
-                  <option key={p.value} value={p.value}>
-                    {p.label}
-                  </option>
-                ))}
-              </select>
-            </div>
-          </div>
+        <div className="space-y-6">
+          <Select
+            label="Provider"
+            className="w-full"
+            value={directoryType}
+            disabled={formLocked}
+            onChange={(e) => setDirectoryType(e.target.value as DirectoryType)}
+          >
+            {PROVIDERS.map((p) => (
+              <Option key={p.value} value={p.value}>
+                {p.label}
+              </Option>
+            ))}
+          </Select>
 
-          <div>
-            <label className="mb-2 block text-xs font-semibold uppercase tracking-wide text-slate-500">
+          <div className="flex flex-col gap-3">
+            <FormLabel className="typography-descriptorMini uppercase text-neutral-b3">
               API Credentials
-            </label>
-            <div className="space-y-3">
-              {directoryType === 'Azure' && (
-                <div className="relative">
-                  <KeyRound className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-                  <input
-                    className="w-full rounded-lg border border-slate-300 py-2.5 pl-10 pr-4 text-sm disabled:bg-slate-50"
-                    placeholder="Azure Tenant ID"
-                    value={azureTenantId}
-                    disabled={formLocked}
-                    onChange={(e) => setAzureTenantId(e.target.value)}
-                  />
-                </div>
-              )}
-              {directoryType === 'Okta' && (
-                <div className="relative">
-                  <KeyRound className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-                  <input
-                    className="w-full rounded-lg border border-slate-300 py-2.5 pl-10 pr-4 text-sm disabled:bg-slate-50"
-                    placeholder="Okta domain (https://dev-example.okta.com)"
-                    value={oktaDomain}
-                    disabled={formLocked}
-                    onChange={(e) => setOktaDomain(e.target.value)}
-                  />
-                </div>
-              )}
-              <div className="relative">
-                <KeyRound className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-                <input
-                  className="w-full rounded-lg border border-slate-300 py-2.5 pl-10 pr-4 text-sm disabled:bg-slate-50"
-                  placeholder="Client ID"
-                  value={clientId}
-                  disabled={formLocked}
-                  onChange={(e) => setClientId(e.target.value)}
-                />
-              </div>
-              {!connected && (
-                <div className="relative">
-                  <KeyRound className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-                  <input
-                    type="password"
-                    className="w-full rounded-lg border border-slate-300 py-2.5 pl-10 pr-4 text-sm"
-                    placeholder="Client Secret"
-                    value={clientSecret}
-                    disabled={connecting || busy}
-                    onChange={(e) => setClientSecret(e.target.value)}
-                  />
-                </div>
-              )}
-              {connected && (
-                <p className="text-xs text-slate-500">
-                  Client secret is stored securely. Disconnect to change credentials.
-                </p>
-              )}
-            </div>
+            </FormLabel>
+            {directoryType === 'Azure' && (
+              <TextField
+                fullWidth
+                label="Azure Tenant ID"
+                placeholder="Azure Tenant ID"
+                value={azureTenantId}
+                disabled={formLocked}
+                onChange={(e) => setAzureTenantId(e.target.value)}
+              />
+            )}
+            {directoryType === 'Okta' && (
+              <TextField
+                fullWidth
+                label="Okta domain"
+                placeholder="https://dev-example.okta.com"
+                value={oktaDomain}
+                disabled={formLocked}
+                onChange={(e) => setOktaDomain(e.target.value)}
+              />
+            )}
+            <TextField
+              fullWidth
+              label="Client ID"
+              placeholder="Client ID"
+              value={clientId}
+              disabled={formLocked}
+              onChange={(e) => setClientId(e.target.value)}
+            />
+            {!connected && (
+              <TextField
+                fullWidth
+                type="password"
+                label="Client Secret"
+                placeholder="Client Secret"
+                value={clientSecret}
+                disabled={connecting || busy}
+                onChange={(e) => setClientSecret(e.target.value)}
+              />
+            )}
+            {connected && (
+              <p className="typography-descriptorMini text-neutral-b3">
+                Client secret is stored securely. Disconnect to change credentials.
+              </p>
+            )}
           </div>
 
-          <div>
-            <label className="mb-2 block text-xs font-semibold uppercase tracking-wide text-slate-500">
-              Callback URL
-            </label>
-            <input
-              className="w-full rounded-lg border border-slate-200 bg-slate-50 py-2.5 px-4 text-sm text-slate-600"
-              value={config?.callbackUrl ?? ''}
-              readOnly
-            />
-            <p className="mt-1 text-xs text-slate-500">
-              Register this redirect URI in your IDP app configuration.
-            </p>
-          </div>
+          <TextField
+            fullWidth
+            label="Callback URL"
+            readOnly
+            value={config?.callbackUrl ?? ''}
+            helperText="Register this redirect URI in your IDP app configuration."
+          />
         </div>
 
-        <footer className="flex justify-end gap-3 border-t border-slate-100 px-6 py-4">
-          <button
-            type="button"
+        <div className="mt-6 flex justify-end gap-3 border-t border-neutral-b4 pt-4">
+          <Button
+            variant="outlined"
+            color="danger"
             disabled={!connected || connecting || busy}
             onClick={handleDisconnect}
-            className="rounded-lg border border-red-300 px-5 py-2 text-sm font-medium text-red-600 disabled:cursor-not-allowed disabled:opacity-40"
           >
             Disconnect
-          </button>
-          <button
-            type="button"
+          </Button>
+          <Button
+            variant="contained"
             disabled={connected || connecting || busy || !provider?.supportsOAuth}
             onClick={handleConnect}
-            className="rounded-lg bg-blue-600 px-5 py-2 text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-40"
           >
             {connecting ? 'Connecting…' : connected ? 'Connected' : 'Connect'}
-          </button>
-        </footer>
-      </section>
+          </Button>
+        </div>
+      </Block>
 
       {connected && (
-        <section className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
-          <header className="border-b border-slate-100 px-6 py-4">
-            <h2 className="text-lg font-semibold text-slate-900">Directory group</h2>
-            <p className="text-sm text-slate-500">
-              Choose the directory group whose users will be provisioned to RingCentral.
-            </p>
-          </header>
-          <div className="px-6 py-5">
-            <label className="mb-2 block text-xs font-semibold uppercase tracking-wide text-slate-500">
-              Group
-            </label>
-            <div className="flex flex-wrap items-center gap-3">
-              <input
-                className="min-w-[16rem] flex-1 rounded-lg border border-slate-300 bg-slate-50 py-2.5 px-4 text-sm text-slate-700 disabled:cursor-default"
-                readOnly
-                disabled
-                value={groupDisplayValue}
-                placeholder="Please select a directory group for user provisioning"
-              />
-              <button
-                type="button"
-                disabled={busy}
-                onClick={() => setGroupPickerOpen(true)}
-                className="rounded-lg border border-slate-300 bg-white px-5 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-40"
-              >
-                Group
-              </button>
+        <Block>
+          <BlockHeader divider>
+            <div>
+              <div className="typography-subtitleMiniSemiBold">Directory group</div>
+              <p className="typography-label text-neutral-b3">
+                Choose the directory group whose users will be provisioned to RingCentral.
+              </p>
             </div>
+          </BlockHeader>
+          <div className="flex flex-wrap items-end gap-3">
+            <TextField
+              fullWidth
+              label="Group"
+              readOnly
+              disabled
+              value={groupDisplayValue}
+              placeholder="Please select a directory group for user provisioning"
+              RootProps={{ className: 'min-w-[16rem] flex-1' }}
+            />
+            <Button variant="outlined" color="secondary" disabled={busy} onClick={() => setGroupPickerOpen(true)}>
+              Group
+            </Button>
           </div>
-        </section>
+        </Block>
       )}
 
       <DirectoryGroupPickerDialog

@@ -45,6 +45,8 @@ public class RcOAuthService {
                 .queryParam("client_id", properties.getClientId())
                 .queryParam("redirect_uri", properties.getRedirectUri())
                 .queryParam("state", state)
+                .queryParam("display", "touch")
+                .queryParam("force", "true")
                 .build()
                 .encode()
                 .toUriString();

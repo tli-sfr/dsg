@@ -192,4 +192,7 @@ export const api = {
       method: 'POST',
       body: JSON.stringify(body),
     }),
+
+  logoutRcOAuth: (accountId: string) =>
+    request<void>(accountId, '/rc/oauth/session', { method: 'DELETE' }),
 };

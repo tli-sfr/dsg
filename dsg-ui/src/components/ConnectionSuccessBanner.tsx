@@ -1,3 +1,4 @@
+import { Snackbar, SnackbarContent } from '@ringcentral/spring-ui';
 import { useEffect } from 'react';
 
 export function ConnectionSuccessBanner({
@@ -19,13 +20,12 @@ export function ConnectionSuccessBanner({
   const displayName = [firstName, lastName].filter(Boolean).join(' ').trim();
 
   return (
-    <div
-      role="status"
-      className="fixed left-1/2 top-4 z-[100] -translate-x-1/2 rounded-lg bg-green-600 px-6 py-3 text-center text-sm font-medium text-white shadow-lg"
-    >
-      {displayName
-        ? `Successfully connected with ${displayName}`
-        : 'Successfully connected'}
-    </div>
+    <Snackbar open onClose={onDismiss} autoHideDuration={durationMs}>
+      <SnackbarContent severity="success">
+        {displayName
+          ? `Successfully connected with ${displayName}`
+          : 'Successfully connected'}
+      </SnackbarContent>
+    </Snackbar>
   );
 }

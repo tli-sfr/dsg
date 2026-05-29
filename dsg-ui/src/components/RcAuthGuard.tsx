@@ -1,7 +1,9 @@
+import { Alert, CircularProgressIndicator } from '@ringcentral/spring-ui';
 import { useEffect, useState } from 'react';
 import { useLocation } from 'react-router-dom';
 import { api } from '../api/client';
 import { isDirectoryOAuthCallbackPath } from '../lib/directoryOAuthPaths';
+import { redirectToRcOAuthLogin } from '../lib/rcOAuth';
 import { isRcOAuthCallbackPath } from '../lib/rcOAuthPaths';
 import { useAccountId } from './AccountBar';
 
@@ -44,13 +46,10 @@ export function RcAuthGuard({ children }: { children: React.ReactNode }) {
           return;
         }
 
-        const { authorizeUrl, state } = await api.getRcAuthorizeUrl(accountId);
         if (cancelled) return;
 
-        sessionStorage.setItem('rc_oauth_state', state);
-        sessionStorage.setItem('rc_oauth_account_id', accountId);
         setAuthState('redirecting');
-        window.location.assign(authorizeUrl);
+        await redirectToRcOAuthLogin(accountId);
       } catch (e) {
         if (cancelled) return;
         setAuthState('error');
@@ -74,10 +73,13 @@ export function RcAuthGuard({ children }: { children: React.ReactNode }) {
 
   if (authState === 'loading' || authState === 'redirecting') {
     return (
-      <div className="mx-auto max-w-lg p-8 text-center text-slate-600">
-        {authState === 'redirecting'
-          ? 'Redirecting to RingCentral login…'
-          : 'Checking RingCentral authentication…'}
+      <div className="mx-auto flex max-w-lg flex-col items-center gap-4 p-8 text-center">
+        <CircularProgressIndicator />
+        <p className="typography-label text-neutral-b2">
+          {authState === 'redirecting'
+            ? 'Redirecting to RingCentral login…'
+            : 'Checking RingCentral authentication…'}
+        </p>
       </div>
     );
   }
@@ -85,19 +87,19 @@ export function RcAuthGuard({ children }: { children: React.ReactNode }) {
   if (authState === 'not-configured') {
     return (
       <div className="mx-auto max-w-lg space-y-3 p-8">
-        <h1 className="text-xl font-semibold text-rc-navy">RingCentral OAuth not configured</h1>
-        <p className="text-sm text-slate-600">
-          Copy <code className="rounded bg-slate-100 px-1">dsg-api/src/main/resources/application-local.yml.example</code>{' '}
-          to <code className="rounded bg-slate-100 px-1">application-local.yml</code>, add your Client ID and Client
-          Secret, then restart the backend with profile <code className="rounded bg-slate-100 px-1">local</code>.
+        <h1 className="typography-title text-neutral-b1">RingCentral OAuth not configured</h1>
+        <p className="typography-label text-neutral-b2">
+          Copy <code className="rounded-sui-sm bg-neutral-b5 px-1">dsg-api/src/main/resources/application-local.yml.example</code>{' '}
+          to <code className="rounded-sui-sm bg-neutral-b5 px-1">application-local.yml</code>, add your Client ID and Client
+          Secret, then restart the backend with profile <code className="rounded-sui-sm bg-neutral-b5 px-1">local</code>.
         </p>
       </div>
     );
   }
 
   return (
-    <div className="mx-auto max-w-lg p-8 text-center text-red-700">
-      {errorMessage ?? 'Authentication failed'}
+    <div className="mx-auto max-w-lg p-8">
+      <Alert severity="error">{errorMessage ?? 'Authentication failed'}</Alert>
     </div>
   );
 }

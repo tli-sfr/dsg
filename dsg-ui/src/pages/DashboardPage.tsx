@@ -1,6 +1,20 @@
-import { Link } from 'react-router-dom';
-import { Plus, RefreshCw } from 'lucide-react';
+import { AddContactMd, RefreshMd } from '@ringcentral/spring-icon';
+import {
+  Alert,
+  Button,
+  IconButton,
+  Link,
+  MenuItemText,
+  Option,
+  Select,
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableRow,
+} from '@ringcentral/spring-ui';
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { Link as RouterLink } from 'react-router-dom';
 import { api } from '../api/client';
 import type {
   DeprovisioningType,
@@ -14,6 +28,12 @@ import { Card } from '../components/Card';
 import { formatInstant, formatSelectionExpression } from '../lib/format';
 
 const TERMINAL_JOB_STATES = new Set(['COMPLETED', 'SUCCEEDED', 'FAILED', 'CANCELLED', 'STUCK']);
+
+const DEPROVISION_LABELS: Record<DeprovisioningType, string> = {
+  FULL_DELETE: 'Full delete',
+  RECLAIM_RESOURCE: 'Reclaim resource',
+  DISABLE_ONLY: 'Disable only',
+};
 
 function isJobFinished(state: string, completedAt: string | null): boolean {
   return TERMINAL_JOB_STATES.has(state) || completedAt != null;
@@ -115,67 +135,70 @@ export function DashboardPage() {
     <div className="mx-auto max-w-6xl space-y-6 p-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-semibold text-rc-navy">Directory Integration</h1>
-          <p className="text-sm text-slate-500">Configure IDP sync, rules, and provisioning</p>
+          <h1 className="typography-title text-neutral-b1">Directory Integration</h1>
+          <p className="typography-label text-neutral-b3">Configure IDP sync, rules, and provisioning</p>
         </div>
-        <button
-          type="button"
-          onClick={refresh}
-          className="inline-flex items-center gap-2 rounded border border-slate-300 px-3 py-1.5 text-sm hover:bg-slate-50"
-        >
-          <RefreshCw className="h-4 w-4" />
+        <Button variant="outlined" color="primary" size="small" startIcon={RefreshMd} onClick={refresh}>
           Refresh
-        </button>
+        </Button>
       </div>
 
-      {message && <p className="rounded bg-green-50 px-4 py-2 text-sm text-green-800">{message}</p>}
-      {error && <p className="rounded bg-red-50 px-4 py-2 text-sm text-red-800">{error}</p>}
+      {message && (
+        <Alert severity="success" onClose={() => setMessage(null)}>
+          {message}
+        </Alert>
+      )}
+      {error && (
+        <Alert severity="error" onClose={() => setError(null)}>
+          {error}
+        </Alert>
+      )}
 
       <div className="grid gap-6 md:grid-cols-2">
         <Card title="Latest sync">
           {latestReport ? (
-            <dl className="grid grid-cols-2 gap-2 text-sm">
-              <dt className="text-slate-500">Job</dt>
+            <dl className="grid grid-cols-2 gap-2 typography-label">
+              <dt className="text-neutral-b3">Job</dt>
               <dd>{latestReport.jobId} · {latestReport.jobType}</dd>
-              <dt className="text-slate-500">State</dt>
+              <dt className="text-neutral-b3">State</dt>
               <dd>{latestReport.state}</dd>
-              <dt className="text-slate-500">Succeeded</dt>
-              <dd className="text-green-700">{latestReport.successCount}</dd>
-              <dt className="text-slate-500">Failed</dt>
-              <dd className={latestReport.failedCount ? 'text-red-700' : ''}>
+              <dt className="text-neutral-b3">Succeeded</dt>
+              <dd className="text-success-b">{latestReport.successCount}</dd>
+              <dt className="text-neutral-b3">Failed</dt>
+              <dd className={latestReport.failedCount ? 'text-danger-b' : ''}>
                 {latestReport.failedCount}
               </dd>
-              <dt className="text-slate-500">Completed</dt>
+              <dt className="text-neutral-b3">Completed</dt>
               <dd>{formatInstant(latestReport.completedAt)}</dd>
             </dl>
           ) : (
-            <p className="text-sm text-slate-500">No completed jobs yet.</p>
+            <p className="typography-label text-neutral-b3">No completed jobs yet.</p>
           )}
         </Card>
 
         <Card title="Directory connection">
           {directory ? (
-            <dl className="space-y-1 text-sm">
+            <dl className="space-y-1 typography-label">
               <div>
-                <span className="text-slate-500">Type: </span>
+                <span className="text-neutral-b3">Type: </span>
                 {directory.directoryType}
               </div>
               <div>
-                <span className="text-slate-500">Connected: </span>
+                <span className="text-neutral-b3">Connected: </span>
                 {directory.connected ? 'Yes' : 'No'}
               </div>
             </dl>
           ) : (
-            <button
-              type="button"
-              className="text-sm text-rc-orange underline"
+            <Button
+              variant="text"
+              color="primary"
               onClick={async () => {
                 await api.createDirectory(accountId, 'Okta');
                 refresh();
               }}
             >
               Configure Okta directory
-            </button>
+            </Button>
           )}
         </Card>
       </div>
@@ -191,30 +214,29 @@ export function DashboardPage() {
         title="Synchronization"
         action={
           <div className="flex flex-col items-end gap-1">
-            <button
-              type="button"
+            <Button
+              variant="outlined"
+              color="primary"
+              size="small"
               onClick={runFullSync}
               disabled={fullSyncStatus === 'in_progress'}
-              className="inline-flex items-center gap-1 rounded border border-rc-orange px-3 py-1 text-xs font-medium text-rc-orange transition-colors hover:bg-rc-orange hover:text-white disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-transparent disabled:hover:text-rc-orange"
             >
               Full sync
-            </button>
+            </Button>
             {fullSyncStatus === 'in_progress' && (
-              <div className="flex items-center gap-1 text-xs text-slate-500">
+              <div className="flex items-center gap-1 typography-descriptorMini text-neutral-b3">
                 <span>In progress</span>
-                <button
-                  type="button"
-                  onClick={checkFullSyncStatus}
-                  disabled={checkingFullSync}
+                <IconButton
+                  symbol={RefreshMd}
+                  size="xsmall"
                   aria-label="Check sync status"
-                  className="rounded p-0.5 text-slate-500 hover:bg-slate-100 hover:text-rc-navy disabled:opacity-50"
-                >
-                  <RefreshCw className={`h-3.5 w-3.5 ${checkingFullSync ? 'animate-spin' : ''}`} />
-                </button>
+                  disabled={checkingFullSync}
+                  onClick={checkFullSyncStatus}
+                />
               </div>
             )}
             {fullSyncStatus === 'finished' && fullSyncFinishedAt && (
-              <p className="text-xs text-slate-500">
+              <p className="typography-descriptorMini text-neutral-b3">
                 Finished at {formatInstant(fullSyncFinishedAt)}
               </p>
             )}
@@ -225,57 +247,60 @@ export function DashboardPage() {
       <Card
         title="Rule based automation"
         action={
-          <Link
+          <Button
+            variant="contained"
+            color="secondary"
+            size="small"
+            startIcon={AddContactMd}
+            component={RouterLink}
             to={`/directory-integration/rules/new?accountId=${accountId}`}
-            className="inline-flex items-center gap-1 rounded bg-rc-navy px-3 py-1 text-xs font-medium text-white"
           >
-            <Plus className="h-3 w-3" />
             Create rule
-          </Link>
+          </Button>
         }
       >
-        <table className="w-full text-left text-sm">
-          <thead>
-            <tr className="border-b text-slate-500">
-              <th className="py-2">Priority</th>
-              <th>Name</th>
-              <th>Conditions</th>
-              <th className="py-2 text-right">Actions</th>
-            </tr>
-          </thead>
-          <tbody>
+        <Table>
+          <TableHead>
+            <TableRow>
+              <TableCell>Priority</TableCell>
+              <TableCell>Name</TableCell>
+              <TableCell>Conditions</TableCell>
+              <TableCell align="right">Actions</TableCell>
+            </TableRow>
+          </TableHead>
+          <TableBody>
             {rules.map((r) => (
-              <tr key={r.ruleId} className="border-b border-slate-50">
-                <td className="py-2">{r.priority}</td>
-                <td>{r.ruleName}</td>
-                <td className="text-slate-600">
-                  {formatSelectionExpression(r.selectionExpression)}
-                </td>
-                <td className="py-2 text-right">
+              <TableRow key={r.ruleId}>
+                <TableCell>{r.priority}</TableCell>
+                <TableCell>{r.ruleName}</TableCell>
+                <TableCell>{formatSelectionExpression(r.selectionExpression)}</TableCell>
+                <TableCell align="right">
                   <Link
+                    component={RouterLink}
                     to={`/directory-integration/rules/${r.ruleId}?accountId=${accountId}`}
-                    className="text-xs text-rc-orange hover:underline"
                   >
                     Edit
                   </Link>
-                </td>
-              </tr>
+                </TableCell>
+              </TableRow>
             ))}
             {rules.length === 0 && (
-              <tr>
-                <td colSpan={4} className="py-4 text-slate-500">
-                  No rules configured.
-                </td>
-              </tr>
+              <TableRow>
+                <TableCell colSpan={4}>
+                  <span className="typography-label text-neutral-b3">No rules configured.</span>
+                </TableCell>
+              </TableRow>
             )}
-          </tbody>
-        </table>
+          </TableBody>
+        </Table>
       </Card>
 
       <Card title="User deprovision policy">
-        <select
-          className="rounded border border-slate-300 px-3 py-2 text-sm"
+        <Select
           value={deprovisionType}
+          className="w-56"
+          renderValue={(value) => DEPROVISION_LABELS[value as DeprovisioningType]}
+          MenuProps={{ className: 'min-w-[14rem]' }}
           onChange={async (e) => {
             const value = e.target.value as DeprovisioningType;
             setDeprovisionType(value);
@@ -283,10 +308,16 @@ export function DashboardPage() {
             setMessage('Deprovision policy saved');
           }}
         >
-          <option value="FULL_DELETE">Option A — Full delete</option>
-          <option value="RECLAIM_RESOURCE">Option B — Reclaim resources</option>
-          <option value="DISABLE_ONLY">Option C — Disable only</option>
-        </select>
+          <Option value="FULL_DELETE">
+            <MenuItemText>{DEPROVISION_LABELS.FULL_DELETE}</MenuItemText>
+          </Option>
+          <Option value="RECLAIM_RESOURCE">
+            <MenuItemText>{DEPROVISION_LABELS.RECLAIM_RESOURCE}</MenuItemText>
+          </Option>
+          <Option value="DISABLE_ONLY">
+            <MenuItemText>{DEPROVISION_LABELS.DISABLE_ONLY}</MenuItemText>
+          </Option>
+        </Select>
       </Card>
     </div>
   );

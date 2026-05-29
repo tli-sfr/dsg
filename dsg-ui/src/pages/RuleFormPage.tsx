@@ -1,4 +1,14 @@
-import { Link, useNavigate, useParams } from 'react-router-dom';
+import { AddContactMd } from '@ringcentral/spring-icon';
+import {
+  Alert,
+  Button,
+  FormLabel,
+  Link,
+  Radio,
+  RadioGroup,
+  TextField,
+} from '@ringcentral/spring-ui';
+import { Link as RouterLink, useNavigate, useParams } from 'react-router-dom';
 import { useEffect, useState } from 'react';
 import { api } from '../api/client';
 import type { SelectionCriterion } from '../api/types';
@@ -128,94 +138,97 @@ export function RuleFormPage() {
 
   if (loading) {
     return (
-      <div className="mx-auto max-w-3xl p-6 text-sm text-slate-500">Loading rule…</div>
+      <div className="mx-auto max-w-3xl p-6 typography-label text-neutral-b3">Loading rule…</div>
     );
   }
 
   return (
     <form className="mx-auto max-w-3xl space-y-6 p-6" onSubmit={submit}>
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-semibold text-rc-navy">
+        <h1 className="typography-title text-neutral-b1">
           {isEdit ? 'Edit provisioning rule' : 'Create provisioning rule'}
         </h1>
-        <Link
-          to={`/directory-integration?accountId=${accountId}`}
-          className="text-sm text-rc-orange"
-        >
+        <Link component={RouterLink} to={`/directory-integration?accountId=${accountId}`}>
           Back to dashboard
         </Link>
       </div>
 
-      {error && <p className="rounded bg-red-50 px-4 py-2 text-sm text-red-800">{error}</p>}
+      {error && <Alert severity="error">{error}</Alert>}
 
       <Card title="1. Rule & conditions">
-        <div className="space-y-3">
-          <label className="block text-sm">
-            Rule name
-            <input
+        <div className="space-y-4">
+          <div className="flex items-end gap-4">
+            <TextField
+              fullWidth
+              label="Rule name"
               required
-              className="mt-1 w-full rounded border border-slate-300 px-3 py-2"
               value={ruleName}
               onChange={(e) => setRuleName(e.target.value)}
+              RootProps={{ className: 'min-w-0 flex-1' }}
             />
-          </label>
-          <label className="block text-sm">
-            Priority (lower = first)
-            <input
+            <TextField
+              fullWidth
+              label="Priority (lower = first)"
               type="number"
-              min={1}
-              className="mt-1 w-24 rounded border border-slate-300 px-3 py-2"
-              value={priority}
+              value={String(priority)}
               onChange={(e) => setPriority(Number(e.target.value))}
+              RootProps={{ className: 'w-28 shrink-0' }}
             />
-          </label>
-          <fieldset className="text-sm">
-            <legend className="font-medium">Trigger</legend>
-            <label className="mt-2 flex items-center gap-2">
-              <input
-                type="radio"
-                checked={matchAll}
-                onChange={() => setMatchAll(true)}
-              />
-              All users
-            </label>
-            <label className="mt-1 flex items-center gap-2">
-              <input
-                type="radio"
-                checked={!matchAll}
-                onChange={() => setMatchAll(false)}
-              />
-              Specific conditions (AND)
-            </label>
+          </div>
+          <fieldset>
+            <FormLabel className="typography-descriptorMini uppercase text-neutral-b3">
+              Trigger
+            </FormLabel>
+            <RadioGroup
+              name="trigger"
+              value={matchAll ? 'all' : 'conditions'}
+              onChange={(e) => setMatchAll(e.target.value === 'all')}
+            >
+              <label className="mt-2 flex items-center gap-2 typography-label uppercase">
+                <Radio value="all" />
+                All users
+              </label>
+              <label className="mt-1 flex items-center gap-2 typography-label uppercase">
+                <Radio value="conditions" />
+                Specific conditions (AND)
+              </label>
+            </RadioGroup>
           </fieldset>
           {!matchAll &&
             criteria.map((c, i) => (
-              <div key={i} className="flex flex-wrap gap-2">
-                <input
-                  className="rounded border border-slate-300 px-2 py-1 text-sm"
+              <div key={i} className="flex items-center gap-3">
+                <TextField
+                  fullWidth
                   value={c.attribute}
                   onChange={(e) => {
                     const next = [...criteria];
                     next[i] = { ...c, attribute: e.target.value };
                     setCriteria(next);
                   }}
+                  RootProps={{ className: 'min-w-0 flex-1' }}
                 />
-                <span className="py-1 text-sm">equals</span>
-                <input
-                  className="rounded border border-slate-300 px-2 py-1 text-sm"
+                <span className="shrink-0 typography-descriptorMini uppercase text-neutral-b3">
+                  Equals
+                </span>
+                <TextField
+                  fullWidth
                   value={c.value}
                   onChange={(e) => {
                     const next = [...criteria];
                     next[i] = { ...c, value: e.target.value };
                     setCriteria(next);
                   }}
+                  RootProps={{ className: 'min-w-0 flex-1' }}
                 />
               </div>
             ))}
           {!matchAll && (
-            <button
+            <Button
               type="button"
-              className="text-sm text-rc-orange"
+              variant="text"
+              color="primary"
+              size="small"
+              startIcon={AddContactMd}
               onClick={() =>
                 setCriteria([
                   ...criteria,
@@ -223,8 +236,8 @@ export function RuleFormPage() {
                 ])
               }
             >
-              + Add criterion
-            </button>
+              Add criterion
+            </Button>
           )}
         </div>
       </Card>
@@ -234,48 +247,36 @@ export function RuleFormPage() {
       </Card>
 
       <Card title="3. Custom attribute mapping (per rule)">
-        <p className="text-sm text-slate-500">Optional — configure via API for Phase 1.</p>
+        <p className="typography-label text-neutral-b3">Optional — configure via API for Phase 1.</p>
       </Card>
 
       <Card title="4. Phone number strategy">
-        <label className="block text-sm">
-          Area codes (comma-separated, inventory only)
-          <input
-            className="mt-1 w-full rounded border border-slate-300 px-3 py-2"
-            value={areaCodes}
-            onChange={(e) => setAreaCodes(e.target.value)}
-          />
-        </label>
+        <TextField
+          label="Area codes (comma-separated, inventory only)"
+          value={areaCodes}
+          onChange={(e) => setAreaCodes(e.target.value)}
+        />
       </Card>
 
       <Card title="5. Device assignment">
-        <label className="block text-sm">
-          Device type
-          <input
-            className="mt-1 w-full rounded border border-slate-300 px-3 py-2"
-            value={deviceType}
-            onChange={(e) => setDeviceType(e.target.value)}
-          />
-        </label>
+        <TextField
+          label="Device type"
+          value={deviceType}
+          onChange={(e) => setDeviceType(e.target.value)}
+        />
       </Card>
 
       <Card title="6. Templates">
-        <label className="block text-sm">
-          Call handling template ID (optional)
-          <input
-            className="mt-1 w-full rounded border border-slate-300 px-3 py-2"
-            value={templateId}
-            onChange={(e) => setTemplateId(e.target.value)}
-          />
-        </label>
+        <TextField
+          label="Call handling template ID (optional)"
+          value={templateId}
+          onChange={(e) => setTemplateId(e.target.value)}
+        />
       </Card>
 
-      <button
-        type="submit"
-        className="rounded bg-rc-orange px-6 py-2 text-sm font-medium text-white"
-      >
+      <Button type="submit" variant="contained" color="primary">
         Save rule
-      </button>
+      </Button>
     </form>
   );
 }
