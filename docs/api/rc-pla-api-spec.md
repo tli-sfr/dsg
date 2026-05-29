@@ -43,9 +43,11 @@ Content-Type: application/json
     "department": "Engineering"
   },
   "type": "User",
-  "status": "Enabled"
+  "status": "NotActivated"
 }
 ```
+
+**Status:** DSG uses `NotActivated` so the user completes RingCentral welcome/activation before the extension is fully active. Use `Enabled` only if immediate activation is required.
 
 **Response:** `200` + `ExtensionResource` (`id`, `extensionNumber`, `contact`, `status`, `uri`).
 
@@ -171,8 +173,10 @@ Used for RC → directory full sync (wiki 2.3.5).
 ### Delete extension (deprovision — partial)
 
 ```http
-DELETE /account/{accountId}/extension/{extensionId}
+DELETE /account/{accountId}/extension/{extensionId}?savePhoneLines=true
 ```
+
+**Query:** `savePhoneLines=true` retains phone lines on delete (DSG default for directory group removal).
 
 **Note:** PRD options A/B/C may require additional stub APIs (reclaim number/license, disable-only). Deprovision orchestration in worker calls extension delete and/or stubs per `deprovisioning_type`.
 

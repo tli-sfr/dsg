@@ -29,6 +29,7 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import org.mockito.ArgumentCaptor;
 
 @SpringBootTest(properties = "dsg.messaging.listener.enabled=false")
 class JobPipelineIT extends AbstractApiIntegrationTest {
@@ -61,6 +62,12 @@ class JobPipelineIT extends AbstractApiIntegrationTest {
 
     @BeforeEach
     void seedAccountAndJob() {
+        jdbcTemplate.update(
+                "DELETE FROM job_detail WHERE job_id IN (SELECT id FROM job WHERE account_id = ?)",
+                "acct-worker");
+        jdbcTemplate.update("DELETE FROM job WHERE account_id = ?", "acct-worker");
+        jdbcTemplate.update("DELETE FROM directory_sync_user_hash WHERE account_id = ?", "acct-worker");
+
         authRepository.upsert("acct-worker", 2, null);
         authRepository.update("acct-worker", "sales-group", "Sales", true);
         allUsersRuleId = provisioningRuleRepository.upsertRule("acct-worker", "All Users", 1, "{\"match\":\"ALL\"}");
@@ -77,6 +84,9 @@ class JobPipelineIT extends AbstractApiIntegrationTest {
                     String extensionId = invocation.getArgument(1, String.class);
                     return new ProvisioningResult(extensionId, true, "test update (no RC API)");
                 });
+        when(rcProvisioningPort.deleteExtension(eq("acct-worker"), eq("mailbox-former-user")))
+                .thenReturn(new ProvisioningResult(
+                        "mailbox-former-user", true, "test delete (no RC API)"));
     }
 
     @Test
@@ -146,6 +156,79 @@ class JobPipelineIT extends AbstractApiIntegrationTest {
                 String.class,
                 jobId2);
         assertEquals("COMPLETED", job2State);
+    }
+
+    @Test
+    void fullSyncDeletesRcExtensionWhenHashUserNotInCurrentDirectoryPull() {
+        long jobId = jobRepository.createJob("acct-worker", 1, 2, 1);
+        jobRetrievalService.processJobMessage(new JobMessage(Long.toString(jobId), "acct-worker", "FULL"));
+
+        var detailIds = jdbcTemplate.queryForList(
+                "SELECT id FROM job_detail WHERE job_id = ? ORDER BY id",
+                Long.class,
+                jobId);
+        for (Long detailId : detailIds) {
+            String externalId = jdbcTemplate.queryForObject(
+                    "SELECT external_id FROM job_detail WHERE id = ?",
+                    String.class,
+                    detailId);
+            syncWorkerService.processJobDetailMessage(new JobDetailMessage(
+                    Long.toString(detailId),
+                    Long.toString(jobId),
+                    "acct-worker",
+                    externalId,
+                    "CREATE",
+                    Long.toString(allUsersRuleId),
+                    externalId + "@dsg-sync.dev",
+                    stubAttributes(externalId)));
+        }
+
+        jdbcTemplate.update(
+                """
+                        INSERT INTO directory_sync_user_hash
+                            (account_id, directory_type_id, external_id, external_user_hash, mailbox_id)
+                        VALUES (?, ?, ?, ?, ?)
+                        """,
+                "acct-worker",
+                2,
+                "acct-worker-former-user",
+                "former-hash",
+                "mailbox-former-user");
+
+        clearInvocations(messageQueuePort);
+        long jobId2 = jobRepository.createJob("acct-worker", 1, 2, 1);
+        jobRetrievalService.processJobMessage(new JobMessage(Long.toString(jobId2), "acct-worker", "FULL"));
+
+        ArgumentCaptor<JobDetailMessage> captor = ArgumentCaptor.forClass(JobDetailMessage.class);
+        verify(messageQueuePort, times(1)).publishJobDetail(captor.capture());
+        JobDetailMessage deleteMessage = captor.getValue();
+        assertEquals("DELETE", deleteMessage.operation());
+        assertEquals("mailbox-former-user", deleteMessage.mailboxId());
+        assertEquals("acct-worker-former-user", deleteMessage.externalId());
+
+        syncWorkerService.processJobDetailMessage(deleteMessage);
+        verify(rcProvisioningPort).deleteExtension("acct-worker", "mailbox-former-user");
+
+        Integer orphanHashRows = jdbcTemplate.queryForObject(
+                """
+                        SELECT COUNT(*) FROM directory_sync_user_hash
+                        WHERE account_id = ? AND external_id = ?
+                        """,
+                Integer.class,
+                "acct-worker",
+                "acct-worker-former-user");
+        assertEquals(0, orphanHashRows);
+
+        String deleteState = jdbcTemplate.queryForObject(
+                """
+                        SELECT s.state FROM job_detail jd
+                        JOIN job_state s ON s.id = jd.state_id
+                        WHERE jd.job_id = ? AND jd.external_id = ?
+                        """,
+                String.class,
+                jobId2,
+                "acct-worker-former-user");
+        assertEquals("SUCCEEDED", deleteState);
     }
 
     private static Map<String, String> stubAttributes(String externalId) {

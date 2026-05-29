@@ -5,6 +5,7 @@ type NavTab = { to: string; label: string; end?: boolean };
 const tabs: NavTab[] = [
   { to: '/directory-integration', label: 'Directory Integration', end: true },
   { to: '/directory-integration/configuration', label: 'Directory Configuration' },
+  { to: '/directory-integration/sync-history', label: 'Sync History' },
 ];
 
 export function AppNav() {

@@ -6,6 +6,7 @@ import { isDirectoryOAuthCallbackPath } from './lib/directoryOAuthPaths';
 import { isRcOAuthCallbackPath } from './lib/rcOAuthPaths';
 import { DashboardPage } from './pages/DashboardPage';
 import { DirectoryConfigurationPage } from './pages/DirectoryConfigurationPage';
+import { SyncHistoryPage } from './pages/SyncHistoryPage';
 import { DirectoryOAuthCallbackPage } from './pages/DirectoryOAuthCallbackPage';
 import { OAuthCallbackPage } from './pages/OAuthCallbackPage';
 import { RuleFormPage } from './pages/RuleFormPage';
@@ -35,6 +36,7 @@ export default function App() {
           <Route path="/" element={<Navigate to="/directory-integration" replace />} />
           <Route path="/directory-integration" element={<DashboardPage />} />
           <Route path="/directory-integration/configuration" element={<DirectoryConfigurationPage />} />
+          <Route path="/directory-integration/sync-history" element={<SyncHistoryPage />} />
           <Route path="/directory-integration/rules/new" element={<RuleFormPage />} />
           <Route path="/directory-integration/rules/:ruleId" element={<RuleFormPage />} />
           <Route path="/directory-integration/oauth/callback" element={<DirectoryOAuthCallbackPage />} />

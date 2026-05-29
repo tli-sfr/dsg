@@ -12,7 +12,7 @@ public record RcExtensionCreateRequest(
             String firstName, String lastName, String email, String department) {
         return new RcExtensionCreateRequest(
                 "User",
-                "Enabled",
+                "NotActivated",
                 new RcExtensionContact(firstName, lastName, email, department, null));
     }
 }

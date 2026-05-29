@@ -49,6 +49,23 @@ public class LicenseAwareRcProvisioningPort implements RcProvisioningPort {
     }
 
     @Override
+    public ProvisioningResult deleteExtension(String accountId, String rcExtensionId) {
+        if (!rcOAuthService.isConfigured()) {
+            return new ProvisioningResult(
+                    rcExtensionId,
+                    true,
+                    "Stub Extensions/deleteExtension (savePhoneLines=true) for mailbox " + rcExtensionId);
+        }
+        if (!rcOAuthService.hasValidRefreshToken(accountId)) {
+            return rcNotConnectedFailure();
+        }
+        return rcAuthPort
+                .obtainAccessToken(accountId)
+                .map(token -> deleteWithToken(token, rcExtensionId))
+                .orElseGet(this::rcReauthRequiredFailure);
+    }
+
+    @Override
     public ProvisioningResult updateExtension(
             String accountId, String rcUserId, DirectoryUser directoryUser) {
         if (!rcOAuthService.isConfigured()) {
@@ -142,6 +159,18 @@ public class LicenseAwareRcProvisioningPort implements RcProvisioningPort {
         }
     }
 
+    private ProvisioningResult deleteWithToken(String accessToken, String rcExtensionId) {
+        try {
+            provisioningClient.deleteExtension(accessToken, rcExtensionId, true);
+            return new ProvisioningResult(
+                    rcExtensionId,
+                    true,
+                    "Deleted via Extensions/deleteExtension (savePhoneLines=true)");
+        } catch (IllegalStateException ex) {
+            return new ProvisioningResult(rcExtensionId, false, ex.getMessage());
+        }
+    }
+
     private static RcExtensionCreateRequest buildCreateRequest(DirectoryUser user, ProductLicense license) {
         RcBulkAssignContact contact = RcMappedContactBuilder.buildContact(user);
         return RcExtensionCreateRequest.fromDirectoryUser(
@@ -173,6 +202,7 @@ public class LicenseAwareRcProvisioningPort implements RcProvisioningPort {
             payload.put("email", contact.email());
             payload.put("department", contact.department());
         }
+        payload.put("status", request.status());
         return payload;
     }
 
