@@ -1,4 +1,13 @@
-import { RefreshCw } from 'lucide-react';
+import { RefreshMd } from '@ringcentral/spring-icon';
+import {
+  Alert,
+  Button,
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableRow,
+} from '@ringcentral/spring-ui';
 import { useCallback, useEffect, useState } from 'react';
 import { api } from '../api/client';
 import type { JobSummary } from '../api/types';
@@ -29,53 +38,54 @@ export function SyncHistoryPage() {
     <div className="mx-auto max-w-6xl space-y-6 p-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-semibold text-rc-navy">Sync History</h1>
-          <p className="text-sm text-slate-500">View past directory synchronization jobs</p>
+          <h1 className="typography-title text-neutral-b1">Sync History</h1>
+          <p className="typography-label text-neutral-b3">View past directory synchronization jobs</p>
         </div>
-        <button
-          type="button"
-          onClick={refresh}
-          className="inline-flex items-center gap-2 rounded border border-slate-300 px-3 py-1.5 text-sm hover:bg-slate-50"
-        >
-          <RefreshCw className="h-4 w-4" />
+        <Button variant="outlined" color="primary" size="small" startIcon={RefreshMd} onClick={refresh}>
           Refresh
-        </button>
+        </Button>
       </div>
 
-      {error && <p className="rounded bg-red-50 px-4 py-2 text-sm text-red-800">{error}</p>}
+      {error && (
+        <Alert severity="error" onClose={() => setError(null)}>
+          {error}
+        </Alert>
+      )}
 
       <Card title="Sync history">
-        <table className="w-full text-left text-sm">
-          <thead>
-            <tr className="border-b text-slate-500">
-              <th className="py-2">Job</th>
-              <th>Type</th>
-              <th>State</th>
-              <th>OK</th>
-              <th>Failed</th>
-              <th>Started</th>
-            </tr>
-          </thead>
-          <tbody>
+        <Table>
+          <TableHead>
+            <TableRow>
+              <TableCell>Job</TableCell>
+              <TableCell>Type</TableCell>
+              <TableCell>State</TableCell>
+              <TableCell>OK</TableCell>
+              <TableCell>Failed</TableCell>
+              <TableCell>Started</TableCell>
+            </TableRow>
+          </TableHead>
+          <TableBody>
             {jobs.map((j) => (
-              <tr key={j.jobId} className="border-b border-slate-50">
-                <td className="py-2 font-mono text-xs">{j.jobId}</td>
-                <td>{j.jobType}</td>
-                <td>{j.state}</td>
-                <td>{j.successCount}</td>
-                <td>{j.failedCount}</td>
-                <td>{formatInstant(j.startedAt)}</td>
-              </tr>
+              <TableRow key={j.jobId}>
+                <TableCell>
+                  <span className="font-mono typography-descriptorMini">{j.jobId}</span>
+                </TableCell>
+                <TableCell>{j.jobType}</TableCell>
+                <TableCell>{j.state}</TableCell>
+                <TableCell>{j.successCount}</TableCell>
+                <TableCell>{j.failedCount}</TableCell>
+                <TableCell>{formatInstant(j.startedAt)}</TableCell>
+              </TableRow>
             ))}
             {jobs.length === 0 && (
-              <tr>
-                <td colSpan={6} className="py-4 text-slate-500">
-                  No jobs yet.
-                </td>
-              </tr>
+              <TableRow>
+                <TableCell colSpan={6}>
+                  <span className="typography-label text-neutral-b3">No jobs yet.</span>
+                </TableCell>
+              </TableRow>
             )}
-          </tbody>
-        </table>
+          </TableBody>
+        </Table>
       </Card>
     </div>
   );

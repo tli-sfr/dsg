@@ -1,3 +1,4 @@
+import { Alert, CircularProgressIndicator } from '@ringcentral/spring-ui';
 import { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { api } from '../api/client';
@@ -129,17 +130,22 @@ export function OAuthCallbackPage() {
 
   return (
     <div className="mx-auto max-w-lg p-8">
-      <h1 className="text-xl font-semibold text-rc-navy">OAuth callback</h1>
+      <h1 className="typography-title text-neutral-b1">OAuth callback</h1>
       {status === 'pending' && (
-        <p className="mt-4 text-sm text-slate-600">Exchanging authorization code…</p>
+        <div className="mt-4 flex items-center gap-3">
+          <CircularProgressIndicator size="small" />
+          <p className="typography-label text-neutral-b2">Exchanging authorization code…</p>
+        </div>
       )}
       {status === 'success' && (
-        <p className="mt-4 text-sm text-green-700">
+        <Alert severity="success" className="mt-4">
           RingCentral login successful. Redirecting to dashboard…
-        </p>
+        </Alert>
       )}
       {status === 'error' && (
-        <p className="mt-4 text-sm text-red-700">Error: {message}</p>
+        <Alert severity="error" className="mt-4">
+          Error: {message}
+        </Alert>
       )}
     </div>
   );

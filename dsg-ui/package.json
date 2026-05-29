@@ -9,10 +9,13 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "lucide-react": "^0.460.0",
+    "@ringcentral/spring-ui": "1.9.3",
+    "@ringcentral/spring-ui-jupiter": "1.9.3",
+    "dayjs": "1.11.20",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
-    "react-router-dom": "^6.28.0"
+    "react-router-dom": "^6.28.0",
+    "react-virtuoso": "4.7.10"
   },
   "devDependencies": {
     "@types/react": "^18.3.12",

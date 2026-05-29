@@ -1,7 +1,20 @@
+@import '@ringcentral/spring-ui';
+@import '@ringcentral/spring-ui-jupiter';
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 body {
-  @apply bg-slate-50 text-slate-900 antialiased;
+  @apply bg-neutral-b5 text-neutral-b1 antialiased;
+}
+
+/* Spring single-select menus use a radio dot; show a checkmark for the selected item instead */
+.sui-menu-item-root.sui-selectable.sui-selected .sui-menu-item-select-dot::after {
+  @apply h-4 w-4 rounded-none bg-transparent text-primary-b;
+
+  content: '✓';
+  font-size: 0.875rem;
+  font-weight: 700;
+  line-height: 1rem;
 }

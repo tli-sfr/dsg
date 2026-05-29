@@ -164,8 +164,8 @@ export function DirectoryOAuthCallbackPage() {
 
   return (
     <div className="mx-auto max-w-lg p-8">
-      <h1 className="text-xl font-semibold text-rc-navy">Directory OAuth</h1>
-      <p className="mt-4 text-sm text-slate-600">{message}</p>
+      <h1 className="typography-title text-neutral-b1">Directory OAuth</h1>
+      <p className="mt-4 typography-label text-neutral-b2">{message}</p>
     </div>
   );
 }

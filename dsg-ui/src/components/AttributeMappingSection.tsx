@@ -1,4 +1,14 @@
-import { Plus, Trash2 } from 'lucide-react';
+import { AddContactMd, TrashMd } from '@ringcentral/spring-icon';
+import {
+  Button,
+  Option,
+  Select,
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableRow,
+} from '@ringcentral/spring-ui';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { api } from '../api/client';
 import type { AttributeMappingConfig, AttributeMappingRow } from '../api/types';
@@ -126,122 +136,123 @@ export function AttributeMappingSection({
     <Card
       title="Attribute mappings"
       action={
-        <button
-          type="button"
+        <Button
+          variant="outlined"
+          color="primary"
+          size="small"
           disabled={saving || rows.length === 0}
           onClick={save}
-          className="rounded bg-rc-navy px-3 py-1 text-xs font-medium text-white disabled:opacity-50"
         >
           {saving ? 'Saving…' : 'Save mappings'}
-        </button>
+        </Button>
       }
     >
-      <p className="mb-4 text-sm text-slate-500">
+      <p className="mb-4 typography-label text-neutral-b3">
         Attribute mappings define how attributes are synchronized between {providerLabel} and
         RingCentral.
         {config && !config.accountConfigured && (
-          <span className="ml-1 text-slate-400">(Showing defaults — save to customize.)</span>
+          <span className="ml-1 text-neutral-b4">(Showing defaults — save to customize.)</span>
         )}
       </p>
 
-      <table className="w-full text-left text-sm">
-        <thead>
-          <tr className="border-b text-slate-500">
-            <th className="py-2 pr-4">{providerLabel} attribute</th>
-            <th className="py-2 pr-4">RingCentral attribute</th>
-            <th className="py-2 w-20">Remove</th>
-          </tr>
-        </thead>
-        <tbody>
+      <Table>
+        <TableHead>
+          <TableRow>
+            <TableCell>{providerLabel} attribute</TableCell>
+            <TableCell>RingCentral attribute</TableCell>
+            <TableCell>Remove</TableCell>
+          </TableRow>
+        </TableHead>
+        <TableBody>
           {rows.map((row, index) => (
-            <tr key={`${row.directoryAttributePath}-${row.rcAttribute}-${index}`} className="border-b border-slate-50">
-              <td className="max-w-xs truncate py-2 pr-4 font-mono text-xs" title={row.directoryAttributePath}>
-                {row.directoryAttributePath}
-              </td>
-              <td className="py-2 pr-4">{row.rcAttribute}</td>
-              <td className="py-2">
-                <button
-                  type="button"
-                  onClick={() => removeRow(index)}
-                  className="inline-flex items-center gap-1 text-xs text-rc-orange hover:underline"
-                  aria-label="Remove mapping"
+            <TableRow key={`${row.directoryAttributePath}-${row.rcAttribute}-${index}`}>
+              <TableCell>
+                <span
+                  className="block max-w-xs truncate font-mono typography-descriptorMini"
+                  title={row.directoryAttributePath}
                 >
-                  <Trash2 className="h-3.5 w-3.5" />
+                  {row.directoryAttributePath}
+                </span>
+              </TableCell>
+              <TableCell>{row.rcAttribute}</TableCell>
+              <TableCell>
+                <Button
+                  variant="text"
+                  color="primary"
+                  size="small"
+                  startIcon={TrashMd}
+                  onClick={() => removeRow(index)}
+                >
                   Delete
-                </button>
-              </td>
-            </tr>
+                </Button>
+              </TableCell>
+            </TableRow>
           ))}
           {rows.length === 0 && (
-            <tr>
-              <td colSpan={3} className="py-4 text-slate-500">
-                No mappings configured. Add a mapping below.
-              </td>
-            </tr>
+            <TableRow>
+              <TableCell colSpan={3}>
+                <span className="typography-label text-neutral-b3">
+                  No mappings configured. Add a mapping below.
+                </span>
+              </TableCell>
+            </TableRow>
           )}
-        </tbody>
-      </table>
+        </TableBody>
+      </Table>
 
       {!showAdd ? (
-        <button
-          type="button"
+        <Button
+          variant="text"
+          color="primary"
+          size="small"
+          startIcon={AddContactMd}
+          className="mt-4"
           onClick={() => setShowAdd(true)}
-          className="mt-4 inline-flex items-center gap-1 text-sm text-rc-orange hover:underline"
         >
-          <Plus className="h-4 w-4" />
           Add new mapping
-        </button>
+        </Button>
       ) : (
-        <div className="mt-4 flex flex-wrap items-end gap-3 rounded border border-slate-200 bg-slate-50 p-4">
-          <label className="text-sm">
-            Directory attribute
-            <select
-              className="mt-1 block w-56 rounded border border-slate-300 px-2 py-1 text-sm"
-              value={addDirPath}
-              onChange={(e) => setAddDirPath(e.target.value)}
-            >
-              <option value="">Select…</option>
-              {addableDirectory.map((d) => (
-                <option key={d.attributePath} value={d.attributePath}>
-                  {d.attributePath} ({d.attributeName})
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className="text-sm">
-            RingCentral attribute
-            <select
-              className="mt-1 block w-48 rounded border border-slate-300 px-2 py-1 text-sm"
-              value={addRc}
-              onChange={(e) => setAddRc(e.target.value)}
-            >
-              <option value="">Select…</option>
-              {addableRc.map((r) => (
-                <option key={r.attributeName} value={r.attributeName}>
-                  {r.displayName} ({r.attributeName})
-                </option>
-              ))}
-            </select>
-          </label>
-          <button
-            type="button"
-            onClick={confirmAdd}
-            disabled={!addDirPath || !addRc}
-            className="rounded bg-rc-orange px-3 py-1.5 text-xs font-medium text-white disabled:opacity-50"
+        <div className="mt-4 flex flex-wrap items-end gap-3 rounded-sui-md border border-neutral-b4 bg-neutral-b5 p-4">
+          <Select
+            label="Directory attribute"
+            placeholder="Select…"
+            value={addDirPath || null}
+            onChange={(e) => setAddDirPath(e.target.value)}
+            className="w-56"
           >
+            {addableDirectory.map((d) => (
+              <Option key={d.attributePath} value={d.attributePath}>
+                {d.attributePath} ({d.attributeName})
+              </Option>
+            ))}
+          </Select>
+          <Select
+            label="RingCentral attribute"
+            placeholder="Select…"
+            value={addRc || null}
+            onChange={(e) => setAddRc(e.target.value)}
+            className="w-48"
+          >
+            {addableRc.map((r) => (
+              <Option key={r.attributeName} value={r.attributeName}>
+                {r.displayName} ({r.attributeName})
+              </Option>
+            ))}
+          </Select>
+          <Button variant="contained" disabled={!addDirPath || !addRc} onClick={confirmAdd}>
             Add
-          </button>
-          <button
-            type="button"
+          </Button>
+          <Button
+            variant="outlined"
+            color="secondary"
             onClick={() => {
               setShowAdd(false);
               setAddDirPath('');
               setAddRc('');
             }}
-            className="rounded border border-slate-300 px-3 py-1.5 text-xs"
           >
             Cancel
-          </button>
+          </Button>
         </div>
       )}
     </Card>

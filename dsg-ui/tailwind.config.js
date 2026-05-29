@@ -1,15 +1,17 @@
+import { createRequire } from 'module';
+
+const require = createRequire(import.meta.url);
+
 /** @type {import('tailwindcss').Config} */
 export default {
-  content: ['./index.html', './src/**/*.{js,ts,jsx,tsx}'],
-  theme: {
-    extend: {
-      colors: {
-        rc: {
-          orange: '#ff8800',
-          navy: '#1e2a3a',
-        },
-      },
-    },
-  },
-  plugins: [],
+  content: [
+    './index.html',
+    './src/**/*.{js,ts,jsx,tsx}',
+    'node_modules/@ringcentral/spring-ui/**/*.js',
+  ],
+  plugins: [
+    require('@ringcentral/spring-theme/tailwind')({
+      override: false,
+    }),
+  ],
 };

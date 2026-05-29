@@ -19,6 +19,8 @@ import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
 
+import static org.hamcrest.Matchers.allOf;
+import static org.hamcrest.Matchers.containsString;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.mockito.ArgumentMatchers.anyString;
@@ -75,7 +77,9 @@ class RcOAuthControllerIT extends AbstractApiIntegrationTest {
 
         mockMvc.perform(get("/dsg/v1/acct-rc/rc/oauth/authorize-url"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.authorizeUrl").exists())
+                .andExpect(jsonPath("$.authorizeUrl").value(allOf(
+                        containsString("display=touch"),
+                        containsString("force=true"))))
                 .andExpect(jsonPath("$.state").exists());
     }
 
